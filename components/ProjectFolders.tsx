@@ -18,7 +18,7 @@ interface ProjectFoldersPropsWithCallback extends ProjectFoldersProps {
   onFileAction?: () => void;
 }
 
-export default function ProjectFolders({ onFileAction }: ProjectFoldersPropsWithCallback) {
+export default function ProjectFolders({ folders, onFileAction }: ProjectFoldersPropsWithCallback) {
   const { user } = useUser();
   const { project } = useProject();
   const projectId = project?.id;
@@ -189,7 +189,7 @@ export default function ProjectFolders({ onFileAction }: ProjectFoldersPropsWith
             </h3>
             <div style={{ position: 'relative', marginBottom: 24 }}>
               <div style={{ display: 'flex', overflowX: 'auto', gap: 18, paddingBottom: 8 }}>
-                {dbFolders.map((folder) => (
+                {Array.from(new Set([...(folders || []), ...dbFolders])).map((folder) => (
                   <div key={folder} style={{ minWidth: 120, background: '#f1f5f9', borderRadius: 12, boxShadow: '0 2px 8px #e3f0ff', border: '1.5px solid #c3dafc', padding: '18px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', transition: 'box-shadow 0.2s', cursor: 'pointer' }}
                     onClick={() => loadFiles(folder)}
                     tabIndex={0}
@@ -198,28 +198,29 @@ export default function ProjectFolders({ onFileAction }: ProjectFoldersPropsWith
                     <span style={{ fontSize: '2rem', color: '#2563eb', marginBottom: 6 }}>📁</span>
                     <span style={{ fontWeight: 600, color: '#222', fontSize: '1rem', marginBottom: 2 }}>{folder}</span>
                     <span style={{ fontSize: 13, color: '#666', marginBottom: 6 }}>{/* File count badge placeholder */}</span>
-                    <button
-                      style={{ position: 'absolute', top: 8, right: 8, color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, opacity: 0.7 }}
-                      title="Delete folder"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        if (!window.confirm(`Delete folder '${folder}' and all its files?`)) return;
-                        setFolderLoading(folder);
-                        const res = await fetch('/api/folder', {
-                          method: 'DELETE',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ project_id: projectId, name: folder, user: user.username })
-                        });
-                        if (res.ok) {
-                          setDbFolders((prev) => prev.filter(f => f !== folder));
-                        } else {
-                          const data = await res.json();
-                          setError(data.error || 'Could not delete folder');
-                        }
-                        setFolderLoading(null);
-                      }}
-                      disabled={!!folderLoading}
-                    >🗑️</button>
+                    {!Array.from(new Set([...(folders || [])])).includes(folder) && (
+                      <button
+                        style={{ position: 'absolute', top: 8, right: 8, color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, opacity: 0.7 }}
+                        title="Delete folder"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!window.confirm(`Delete folder '${folder}' and all its files?`)) return;
+                          setFolderLoading(folder);
+                          const res = await fetch('/api/folder', {
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ project_id: projectId, name: folder, user: user.username })
+                          });
+                          if (res.ok) {
+                            setDbFolders((prev) => prev.filter(f => f !== folder));
+                          } else {
+                            const data = await res.json();
+                            setError(data.error || 'Could not delete folder');
+                          }
+                          setFolderLoading(null);
+                        }}
+                      >🗑️</button>
+                    )}
                   </div>
                 ))}
               </div>

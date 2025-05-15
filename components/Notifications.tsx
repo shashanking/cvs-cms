@@ -15,6 +15,52 @@ interface NotificationItem {
 }
 
 const Notifications = () => {
+  const { user } = useUser();
+  const { project } = useProject();
+  const projectId = project?.id;
+
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [eventNotifications, setEventNotifications] = useState<any[]>([]); // event notifications
+  const [chatMentions, setChatMentions] = useState<any[]>([]); // chat mention notifications
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [viewedMap, setViewedMap] = useState<Record<string, string[]>>({});
+  const [downloadedMap, setDownloadedMap] = useState<Record<string, string[]>>({});
+  const [projectNames, setProjectNames] = useState<Record<string, string>>({});
+
+  // Real-time subscription for chat mention notifications
+  useEffect(() => {
+    if (!user || !projectId) return;
+    let subscription: any;
+    const fetchMentions = async () => {
+      const { data } = await supabase
+        .from('chat_notifications')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('mentioned_user', user.username)
+        .eq('read', false)
+        .order('created_at', { ascending: false });
+      setChatMentions(data || []);
+    };
+    fetchMentions();
+    subscription = supabase
+      .channel('public:chat_notifications')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_notifications', filter: `project_id=eq.${projectId}` }, payload => {
+        if (payload.new && payload.new.mentioned_user === user.username) {
+          setChatMentions(prev => [payload.new, ...prev]);
+        }
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [user, projectId]);
+
+  // Mark chat mention as read
+  const markChatMentionRead = async (id: string) => {
+    await supabase.from('chat_notifications').update({ read: true }).eq('id', id);
+    setChatMentions(prev => prev.filter(m => m.id !== id));
+  };
+
   useEffect(() => {
     // Listen for mark-as-read events from ProjectEvents
     function handleEventNotificationRead(e: any) {
@@ -38,18 +84,6 @@ const Notifications = () => {
       delete (window as any).markEventNotificationRead;
     };
   }, []);
-
-  const { user } = useUser();
-  const { project } = useProject();
-  const projectId = project?.id;
-
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [eventNotifications, setEventNotifications] = useState<any[]>([]); // event notifications
-  // Removed showBanner and setShowBanner as banner/toast notifications are no longer needed.
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [viewedMap, setViewedMap] = useState<Record<string, string[]>>({});
-  const [downloadedMap, setDownloadedMap] = useState<Record<string, string[]>>({});
-  const [projectNames, setProjectNames] = useState<Record<string, string>>({});
 
   // Fetch all files uploaded by others that the user has not previewed
   const fetchNotifications = async () => {
@@ -288,6 +322,26 @@ const Notifications = () => {
           <h4 style={{ color: '#3182ce', margin: 0 }}>Notifications</h4>
         </div>
         <div style={{ padding: '16px 20px', flex: 1, overflowY: 'auto' }}>
+          {/* Chat Mention Notifications */}
+          {chatMentions.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontWeight: 700, color: '#e53e3e', fontSize: 15, marginBottom: 4 }}>Mentions in Chat</div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {chatMentions.map(m => (
+                  <li key={m.id} style={{ marginBottom: 8, background: '#fef2f2', borderRadius: 6, padding: '8px 10px', border: '1.5px solid #e53e3e', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                    onClick={() => markChatMentionRead(m.id)}
+                    title="Mark as read">
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: 13, color: '#b91c1c', wordBreak: 'break-word', lineHeight: 1.4 }}>@{m.mentioned_user}</span> <span style={{ color: '#222' }}>mentioned by</span> <span style={{ fontWeight: 600, color: '#2563eb' }}>{m.mentioned_by}</span>
+                      <div style={{ marginTop: 2, color: '#444', fontSize: 14 }}>{m.message}</div>
+                      <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{new Date(m.created_at).toLocaleString()}</div>
+                    </div>
+                    <span style={{ background: '#e53e3e', color: '#fff', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 600, marginLeft: 10, minWidth: 54, textAlign: 'center' }}>Unread</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {(eventNotifications.length === 0 && notifications.length === 0) ? (
             <div style={{ color: '#888' }}>No notifications</div>
           ) : (

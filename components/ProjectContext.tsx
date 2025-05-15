@@ -16,8 +16,13 @@ interface ProjectContextType {
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-export function ProjectProvider({ children }: { children: ReactNode }) {
-  const [project, setProject] = useState<Project | null>(null);
+interface ProjectProviderProps {
+  children: ReactNode;
+  initialProject?: Project | null;
+}
+
+export function ProjectProvider({ children, initialProject }: ProjectProviderProps) {
+  const [project, setProject] = useState<Project | null>(initialProject || null);
 
   return (
     <ProjectContext.Provider value={{ project, setProject }}>

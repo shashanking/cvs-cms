@@ -1,15 +1,15 @@
 import { useRouter } from 'next/router';
 import React, { useEffect, useState } from 'react';
-import { useUser } from '../../components/UserContext';
-import { ProjectProvider } from '../../components/ProjectContext';
-import { supabase } from '../../lib/supabaseClient';
-import ProjectFolders from '../../components/ProjectFolders';
-import ProjectTasks from '../../components/ProjectTasks';
-import { ProjectEventsComponent } from '../../components/ProjectEvents';
-import ProjectMembers from '../../components/ProjectMembers';
-import Notifications from '../../components/Notifications';
-import ProjectChatButton from '../../components/ProjectChatButton';
-import ProjectChatNotification from '../../components/ProjectChatNotification';
+import { useUser } from '../../../components/UserContext';
+import { ProjectProvider } from '../../../components/ProjectContext';
+import { supabase } from '../../../lib/supabaseClient';
+import ProjectFolders from '../../../components/ProjectFolders';
+import ProjectTasks from '../../../components/ProjectTasks';
+import { ProjectEventsComponent } from '../../../components/ProjectEvents';
+import ProjectMembers from '../../../components/ProjectMembers';
+import Notifications from '../../../components/Notifications';
+import ProjectChatButton from '../../../components/ProjectChatButton';
+import ProjectChatNotification from '../../../components/ProjectChatNotification';
 
 const FOLDER_LIST = ["finance", "tech", "invoices", "proposals", "reports", "media", "others"];
 
@@ -118,7 +118,7 @@ const ProjectPage: React.FC = () => {
 };
 
 // Helper to set project in context after fetch
-import { useProject } from '../../components/ProjectContext';
+import { useProject } from '../../../components/ProjectContext';
 function ProjectContextSetter({ project }: { project: any }) {
   const { setProject } = useProject();
   React.useEffect(() => {
