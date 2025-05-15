@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '../lib/supabaseClient';
 import CreateProjectForm from '../components/CreateProjectForm';
 import LoginForm from '../components/LoginForm';
@@ -152,12 +153,13 @@ export default function Home() {
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {projects.map(project => (
                   <li key={project.id} style={{ marginBottom: 14 }}>
-                    <button
-                      style={{ background: '#3182ce', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 18px', cursor: 'pointer', width: '100%', textAlign: 'left', fontSize: '4vw', fontWeight: 500 }}
-                      onClick={() => setSelectedProject(project)}
-                    >
-                      {project.name}
-                    </button>
+                    <Link href={`/project/${project.id}`} style={{ textDecoration: 'none' }}>
+                      <button
+                        style={{ background: '#3182ce', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 18px', cursor: 'pointer', width: '100%', textAlign: 'left', fontSize: '4vw', fontWeight: 500 }}
+                      >
+                        {project.name}
+                      </button>
+                    </Link>
                   </li>
                 ))}
               </ul>

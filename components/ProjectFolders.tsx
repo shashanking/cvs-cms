@@ -172,206 +172,219 @@ export default function ProjectFolders({ projectId, folders: initialFolders, use
       </div>
     );
   }
+
   return (
     <div style={{ margin: '4vw 0' }}>
-      {/* Project Events Section */}
       <ProjectEvents projectId={projectId} user={user} />
       <Notifications projectId={projectId} user={user} />
-      {!selectedFolder ? (
-        <div>
-          <h3 style={{ fontSize: '5vw', marginBottom: '3vw', color: '#2b6cb0' }}>Folders</h3>
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const folderName = newFolder.trim();
-              if (!folderName || folders.includes(folderName)) return;
-              setFolderLoading(folderName);
-              // Call API to create folder in DB and storage
-              const res = await fetch('/api/folder', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ project_id: projectId, name: folderName, user: user.username })
-              });
-              const data = await res.json();
-              if (res.ok && data.folder) {
-                setFolders((prev) => [...prev, data.folder.name]);
-                setNewFolder('');
-              } else {
-                setError(data.error || 'Could not add folder');
-              }
-              setFolderLoading(null);
-            }}
-            style={{ marginBottom: 16 }}
-          >
-            <input
-              type="text"
-              value={newFolder}
-              onChange={e => setNewFolder(e.target.value)}
-              placeholder="New folder name"
-              style={{ padding: 6, marginRight: 8 }}
-              disabled={!!folderLoading}
-            />
-            <button type="submit" disabled={!newFolder.trim() || !!folderLoading} style={{ padding: '6px 12px' }}>
-              {folderLoading ? 'Adding...' : 'Add Folder'}
-            </button>
-          </form>
-          <ul>
-            {folders.map(folder => (
-              <li key={folder} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button onClick={() => loadFiles(folder)} style={{ cursor: 'pointer', padding: 8, borderRadius: 6, border: '1px solid #ccc', background: '#f9f9f9' }}>
-                  {folder}
-                </button>
-                <button
-                  style={{ color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}
-                  title="Delete folder"
-                  onClick={async () => {
-                    if (!window.confirm(`Delete folder '${folder}' and all its files?`)) return;
-                    setFolderLoading(folder);
-                    // Call API to delete folder from DB and storage
+      <div>
+        {(!selectedFolder) ? (
+          <div>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 18, color: '#2563eb', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: '1.5rem' }}>🗂️</span> Folders
+            </h3>
+            <div style={{ position: 'relative', marginBottom: 24 }}>
+              <div style={{ display: 'flex', overflowX: 'auto', gap: 18, paddingBottom: 8 }}>
+                {folders.map(folder => (
+                  <div key={folder} style={{ minWidth: 120, background: '#f1f5f9', borderRadius: 12, boxShadow: '0 2px 8px #e3f0ff', border: '1.5px solid #c3dafc', padding: '18px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', transition: 'box-shadow 0.2s', cursor: 'pointer' }}
+                    onClick={() => loadFiles(folder)}
+                    tabIndex={0}
+                    onKeyPress={e => (e.key === 'Enter' ? loadFiles(folder) : undefined)}
+                  >
+                    <span style={{ fontSize: '2rem', color: '#2563eb', marginBottom: 6 }}>📁</span>
+                    <span style={{ fontWeight: 600, color: '#222', fontSize: '1rem', marginBottom: 2 }}>{folder}</span>
+                    <span style={{ fontSize: 13, color: '#666', marginBottom: 6 }}>{/* File count badge placeholder */}</span>
+                    <button
+                      style={{ position: 'absolute', top: 8, right: 8, color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, opacity: 0.7 }}
+                      title="Delete folder"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!window.confirm(`Delete folder '${folder}' and all its files?`)) return;
+                        setFolderLoading(folder);
+                        const res = await fetch('/api/folder', {
+                          method: 'DELETE',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ project_id: projectId, name: folder, user: user.username })
+                        });
+                        if (res.ok) {
+                          setFolders((prev) => prev.filter(f => f !== folder));
+                        } else {
+                          const data = await res.json();
+                          setError(data.error || 'Could not delete folder');
+                        }
+                        setFolderLoading(null);
+                      }}
+                      disabled={!!folderLoading}
+                    >🗑️</button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ position: 'absolute', right: 0, top: '-50px', display: 'flex', gap: 6 }}>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const folderName = newFolder.trim();
+                    if (!folderName || folders.includes(folderName)) return;
+                    setFolderLoading(folderName);
                     const res = await fetch('/api/folder', {
-                      method: 'DELETE',
+                      method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ project_id: projectId, name: folder, user: user.username })
+                      body: JSON.stringify({ project_id: projectId, name: folderName, user: user.username })
                     });
-                    if (res.ok) {
-                      setFolders((prev) => prev.filter(f => f !== folder));
+                    const data = await res.json();
+                    if (res.ok && data.folder) {
+                      setFolders((prev) => [...prev, data.folder.name]);
+                      setNewFolder('');
                     } else {
-                      const data = await res.json();
-                      setError(data.error || 'Could not delete folder');
+                      setError(data.error || 'Could not add folder');
                     }
                     setFolderLoading(null);
                   }}
-                  disabled={!!folderLoading}
-                >🗑️</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        <div>
-          <button onClick={() => setSelectedFolder(null)} style={{ marginBottom: 12 }}>Back to Folders</button>
-          <h3>Files in {selectedFolder}</h3>
-          <input type="file" onChange={handleUpload} disabled={uploading} />
-          {uploading && <span style={{ marginLeft: 12 }}>Uploading...</span>}
-          {error && <div style={{ color: 'red' }}>{error}</div>}
-          <ul>
-            {files.length === 0 && <li>No files yet.</li>}
-            {files.map((file: any) => (
-              <li key={file.name}>
-                {file.name}
-                <button
-                  style={{ marginLeft: 8, color: '#3182ce', background: 'none', border: 'none', cursor: 'pointer' }}
-                  onClick={async () => {
-                    const log = downloadLogs[file.name] || { usernames: [], uploaded_by: '' };
-                    // Only allow if not already downloaded and not uploader
-                    if (user.username !== log.uploaded_by && !log.usernames.includes(user.username)) {
-                      await fetch('/api/auditFileDownload', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          project_id: projectId,
-                          folder: selectedFolder,
-                          file_name: file.name,
-                          downloaded_by: user.username,
-                          downloaded_at: new Date().toISOString(),
-                          uploaded_by: log.uploaded_by,
-                        }),
-                      });
-                      // Update local downloadLogs
-                      setDownloadLogs(prev => ({
-                        ...prev,
-                        [file.name]: {
-                          usernames: [...(prev[file.name]?.usernames || []), user.username],
-                          uploaded_by: log.uploaded_by,
-                        }
-                      }));
-                      loadAuditLogs();
-                    }
-                    // Get public URL for download
-                    const { data } = supabase.storage.from('media').getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);
-                    window.open(data.publicUrl, '_blank');
-                  }}
-                >Download</button>
-                {/* Visual indicator if all other 5 users (excluding uploader) have downloaded */}
-                {Array.isArray(downloadLogs[file.name]?.usernames) && downloadLogs[file.name]?.uploaded_by &&
-                  downloadLogs[file.name].usernames.filter(u => u !== downloadLogs[file.name].uploaded_by).length >= 5 && (
-                    <span title="All other members downloaded" style={{ marginLeft: 4, color: '#3182ce', fontWeight: 'bold' }}>⬇️✔️</span>
-                )}
-                {(file.name.match(/\.(jpg|jpeg|png|gif|pdf)$/i)) && (
-                  <>
-                    <button
-                      style={{ marginLeft: 8, color: '#38a169', background: 'none', border: 'none', cursor: 'pointer' }}
-                      onClick={async () => {
-                        const viewedBy = previewLogs[file.name]?.usernames || [];
-                        if (!viewedBy.includes(user.username)) {
-                          await fetch('/api/auditFilePreview', {
+                >
+                  <input
+                    type="text"
+                    value={newFolder}
+                    onChange={e => setNewFolder(e.target.value)}
+                    placeholder="New folder name"
+                    style={{ padding: 8, borderRadius: 6, border: '1.5px solid #c3dafc', outline: 'none', fontSize: 15 }}
+                    disabled={!!folderLoading}
+                  />
+                  <button type="submit" disabled={!newFolder.trim() || !!folderLoading} style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' }}>
+                    {folderLoading ? '...' : '+'}
+                  </button>
+                </form>
+              </div>
+            </div>
+            {error && <div style={{ color: 'red', marginTop: 8 }}>{error}</div>}
+          </div>
+        ) : (
+          <div>
+            <button onClick={() => setSelectedFolder(null)} style={{ marginBottom: 18, background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 500, color: '#2563eb', cursor: 'pointer', transition: 'background 0.2s' }}
+              onMouseOver={e => (e.currentTarget.style.background = '#e2e8f0')}
+              onMouseOut={e => (e.currentTarget.style.background = '#f1f5f9')}
+            >← Back to Folders</button>
+            <h3 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#2563eb', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: '1.3rem' }}>📁</span> {selectedFolder}
+            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 18 }}>
+              <input type="file" onChange={handleUpload} disabled={uploading} style={{ fontSize: 15 }} />
+              {uploading && <span style={{ color: '#2563eb', fontWeight: 500 }}>Uploading...</span>}
+            </div>
+            {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18 }}>
+              {files.length === 0 && <div style={{ color: '#888', fontSize: 15, padding: 16, borderRadius: 8, background: '#f7fafc', textAlign: 'center' }}>No files yet.</div>}
+              {files.map((file: any) => {
+                const allViewed = Array.isArray(previewLogs[file.name]?.usernames) && previewLogs[file.name].usernames.length >= 6;
+                const allDownloaded = Array.isArray(downloadLogs[file.name]?.usernames) && downloadLogs[file.name]?.uploaded_by && downloadLogs[file.name].usernames.filter(u => u !== downloadLogs[file.name].uploaded_by).length >= 5;
+                return (
+                  <div key={file.name} style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px #e3f0ff', border: '1.5px solid #e3e7ef', padding: 16, display: 'flex', flexDirection: 'column', gap: 8, position: 'relative', transition: 'box-shadow 0.2s', minHeight: 100 }}>
+                    <div style={{ fontWeight: 600, color: '#222', fontSize: 15, marginBottom: 2, wordBreak: 'break-all' }}>{file.name}</div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                      <button
+                        style={{ color: '#3182ce', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
+                        title="Download"
+                        onClick={async () => {
+                          const log = downloadLogs[file.name] || { usernames: [], uploaded_by: '' };
+                          if (user.username !== log.uploaded_by && !log.usernames.includes(user.username)) {
+                            await fetch('/api/auditFileDownload', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                project_id: projectId,
+                                folder: selectedFolder,
+                                file_name: file.name,
+                                downloaded_by: user.username,
+                                downloaded_at: new Date().toISOString(),
+                                uploaded_by: log.uploaded_by,
+                              }),
+                            });
+                            setDownloadLogs(prev => ({
+                              ...prev,
+                              [file.name]: {
+                                usernames: [...(prev[file.name]?.usernames || []), user.username],
+                                uploaded_by: log.uploaded_by,
+                              }
+                            }));
+                            loadAuditLogs();
+                          }
+                          const { data } = supabase.storage.from('media').getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);
+                          window.open(data.publicUrl, '_blank');
+                        }}
+                      >⬇️</button>
+                      <button
+                        style={{ color: '#38a169', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
+                        title="Preview"
+                        onClick={async () => {
+                          const viewedBy = previewLogs[file.name]?.usernames || [];
+                          if (!viewedBy.includes(user.username)) {
+                            await fetch('/api/auditFilePreview', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                project_id: projectId,
+                                folder: selectedFolder,
+                                file_name: file.name,
+                                previewed_by: user.username,
+                                previewed_at: new Date().toISOString(),
+                              }),
+                            });
+                            setPreviewLogs(prev => ({ ...prev, [file.name]: { usernames: [...(prev[file.name]?.usernames || []), user.username] } }));
+                            if (onFileAction) onFileAction();
+                          }
+                          const { data } = supabase.storage.from('media').getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);
+                          setPreviewUrl(data.publicUrl);
+                          setPreviewType(file.name.match(/\.pdf$/i) ? 'pdf' : 'image');
+                        }}
+                      >👁️</button>
+                      <button
+                        style={{ color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
+                        title="Delete file"
+                        onClick={async () => {
+                          if (!window.confirm('Delete this file?')) return;
+                          await fetch('/api/deleteFile', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                               project_id: projectId,
                               folder: selectedFolder,
-                              file_name: file.name, // file.name is the uniqueFileName
-                              previewed_by: user.username,
-                              previewed_at: new Date().toISOString(),
+                              file_path: `projects/${projectId}/${selectedFolder}/${file.name}`,
+                              deleted_by: user.username,
+                              deleted_at: new Date().toISOString(),
                             }),
                           });
-                          // Update local previewLogs
-                          setPreviewLogs(prev => ({ ...prev, [file.name]: { usernames: [...(prev[file.name]?.usernames || []), user.username] } }));
-                          if (onFileAction) onFileAction();
-                        }
-                        const { data } = supabase.storage.from('media').getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);
-                        setPreviewUrl(data.publicUrl);
-                        setPreviewType(file.name.match(/\.pdf$/i) ? 'pdf' : 'image');
-                      }}
-                    >Preview</button>
-                    {/* Visual indicator if all 6 users have viewed */}
-                    {Array.isArray(previewLogs[file.name]?.usernames) && previewLogs[file.name].usernames.length >= 6 && (
-                      <span title="All members viewed" style={{ marginLeft: 4, color: '#38a169', fontWeight: 'bold' }}>✔️</span>
-                    )}
-                  </>
-                )}
-                <button
-                  style={{ marginLeft: 8, color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer' }}
-                  onClick={async () => {
-                    if (!window.confirm('Delete this file?')) return;
-                    await fetch('/api/deleteFile', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        project_id: projectId,
-                        folder: selectedFolder,
-                        file_path: `projects/${projectId}/${selectedFolder}/${file.name}`,
-                        deleted_by: user.username,
-                        deleted_at: new Date().toISOString(),
-                      }),
-                    });
-                    loadFiles(selectedFolder);
-                    loadAuditLogs();
-                  }}
-                >Delete</button>
-              </li>
-            ))}
-          </ul>
-          <hr />
-          <AuditLogs key={auditRefresh} projectId={projectId} folder={selectedFolder} />
-        </div>
-      )}
-      {/* Preview Modal */}
-      {previewUrl && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-          background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div style={{ background: '#fff', padding: 24, borderRadius: 8, maxWidth: '80vw', maxHeight: '80vh', position: 'relative' }}>
-            <button onClick={() => setPreviewUrl(null)} style={{ position: 'absolute', top: 8, right: 8, background: 'none', border: 'none', fontSize: 24, cursor: 'pointer' }}>&times;</button>
-            {previewType === 'image' ? (
-              <img src={previewUrl} alt="preview" style={{ maxWidth: '70vw', maxHeight: '70vh', display: 'block', margin: '0 auto' }} />
-            ) : previewType === 'pdf' ? (
-              <iframe src={previewUrl} style={{ width: '70vw', height: '70vh', border: 'none' }} title="PDF Preview" />
-            ) : null}
+                          loadFiles(selectedFolder);
+                          loadAuditLogs();
+                        }}
+                      >🗑️</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {allViewed && <span style={{ background: '#e6fffa', color: '#38a169', fontWeight: 600, fontSize: 12, borderRadius: 8, padding: '2px 8px' }}>All viewed</span>}
+                      {allDownloaded && <span style={{ background: '#e0e7ff', color: '#2563eb', fontWeight: 600, fontSize: 12, borderRadius: 8, padding: '2px 8px' }}>All downloaded</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <hr />
+            <AuditLogs key={auditRefresh} projectId={projectId} folder={selectedFolder} />
           </div>
-        </div>
-      )}
+        )}
+        {previewUrl && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+            background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+          }}>
+            <div style={{ background: '#fff', padding: 24, borderRadius: 8, maxWidth: '80vw', maxHeight: '80vh', position: 'relative' }}>
+              <button onClick={() => setPreviewUrl(null)} style={{ position: 'absolute', top: 8, right: 8, background: 'none', border: 'none', fontSize: 24, cursor: 'pointer' }}>&times;</button>
+              {previewType === 'image' ? (
+                <img src={previewUrl} alt="preview" style={{ maxWidth: '70vw', maxHeight: '70vh', display: 'block', margin: '0 auto' }} />
+              ) : previewType === 'pdf' ? (
+                <iframe src={previewUrl} style={{ width: '70vw', height: '70vh', border: 'none' }} title="PDF Preview" />
+              ) : null}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
