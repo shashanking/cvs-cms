@@ -6,6 +6,7 @@ import CreateProjectForm from '../components/CreateProjectForm';
 import LoginForm from '../components/LoginForm';
 import ProjectFolders from '../components/ProjectFolders';
 import ProjectTasks from '../components/ProjectTasks';
+import UniversalCalendar from '../components/UniversalCalendar';
 
 // AssignedTasksSection: Shows all tasks assigned to the user (not completed) from all projects
 
@@ -105,65 +106,69 @@ export default function Home() {
     }}>
       <h1 className="dashboard-header" style={{ fontSize: '7vw', margin: '4vw 0 2vw 0', textAlign: 'center', color: '#2b6cb0', letterSpacing: 1 }}>CVS CMS Dashboard</h1>
       {user ? (
-        <div className="desktop-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '4vw' }}>
-          {/* Assigned Tasks Card */}
-          <div className="tasks-card" style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(44,62,80,0.08)', padding: '4vw', marginBottom: '2vw' }}>
-            <h2 style={{ color: '#2b6cb0', fontSize: '5vw', margin: 0, marginBottom: '2vw', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span role="img" aria-label="tasks">📝</span> My Assigned Tasks
-            </h2>
-            <AssignedTasksSection user={user} />
-          </div>
-          {/* User Info Card */}
-          <div className="user-info-card" style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(44,62,80,0.08)', padding: '4vw', marginBottom: '2vw', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ fontWeight: 500, fontSize: '4vw', margin: 0 }}>Welcome, {user.role} ({user.username})</p>
-            <button
-              style={{ background: '#e53e3e', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 14px', cursor: 'pointer' }}
-              onClick={logout}
-            >
-              Logout
-            </button>
-          </div>
-          {/* Project Section Card */}
-          {selectedProject ? (
-            <div className="project-card" style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(44,62,80,0.08)', padding: '4vw', marginBottom: '2vw' }}>
+        <React.Fragment>
+          <UniversalCalendar />
+          <div style={{ height: 32 }} />
+          <div className="desktop-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '4vw' }}>
+            {/* Assigned Tasks Card */}
+            <div className="tasks-card" style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(44,62,80,0.08)', padding: '4vw', marginBottom: '2vw' }}>
               <h2 style={{ color: '#2b6cb0', fontSize: '5vw', margin: 0, marginBottom: '2vw', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span role="img" aria-label="project">📁</span> Project: <span style={{ fontWeight: 500 }}>{selectedProject.name}</span>
+                <span role="img" aria-label="tasks">📝</span> My Assigned Tasks
               </h2>
-              <div className="desktop-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '3vw' }}>
-                <div className="folders-section" style={{ background: '#f7fafc', borderRadius: 8, padding: '3vw 2vw', boxShadow: '0 1px 6px rgba(44,62,80,0.04)' }}>
-                  <ProjectFolders folders={FOLDER_LIST} />
-                </div>
-                <div className="tasks-section" style={{ background: '#f7fafc', borderRadius: 8, padding: '3vw 2vw', boxShadow: '0 1px 6px rgba(44,62,80,0.04)' }}>
-                  <ProjectTasks />
-                </div>
-              </div>
+              <AssignedTasksSection user={user} />
             </div>
-          ) : (
-            <>
-              <div style={{ marginBottom: '2vw' }}>
-                <CreateProjectForm onCreated={handleProjectCreated} />
-              </div>
-              <div className="project-list" style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(44,62,80,0.08)', padding: '4vw', marginBottom: '2vw' }}>
+            {/* User Info Card */}
+            <div className="user-info-card" style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(44,62,80,0.08)', padding: '4vw', marginBottom: '2vw', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <p style={{ fontWeight: 500, fontSize: '4vw', margin: 0 }}>Welcome, {user.role} ({user.username})</p>
+              <button
+                style={{ background: '#e53e3e', color: '#fff', border: 'none', borderRadius: 4, padding: '6px 14px', cursor: 'pointer' }}
+                onClick={logout}
+              >
+                Logout
+              </button>
+            </div>
+            {/* Project Section Card */}
+            {selectedProject ? (
+              <div className="project-card" style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(44,62,80,0.08)', padding: '4vw', marginBottom: '2vw' }}>
                 <h2 style={{ color: '#2b6cb0', fontSize: '5vw', margin: 0, marginBottom: '2vw', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span role="img" aria-label="project">📁</span> Select a Project
+                  <span role="img" aria-label="project">📁</span> Project: <span style={{ fontWeight: 500 }}>{selectedProject.name}</span>
                 </h2>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {projects.map(project => (
-                    <li key={project.id} style={{ marginBottom: 14 }}>
-                      <Link href={`/project/${project.id}`} style={{ textDecoration: 'none' }}>
-                        <button
-                          style={{ background: '#3182ce', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 18px', cursor: 'pointer', width: '100%', textAlign: 'left', fontSize: '4vw', fontWeight: 500 }}
-                        >
-                          {project.name}
-                        </button>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+                <div className="desktop-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '3vw' }}>
+                  <div className="folders-section" style={{ background: '#f7fafc', borderRadius: 8, padding: '3vw 2vw', boxShadow: '0 1px 6px rgba(44,62,80,0.04)' }}>
+                    <ProjectFolders folders={FOLDER_LIST} />
+                  </div>
+                  <div className="tasks-section" style={{ background: '#f7fafc', borderRadius: 8, padding: '3vw 2vw', boxShadow: '0 1px 6px rgba(44,62,80,0.04)' }}>
+                    <ProjectTasks />
+                  </div>
+                </div>
               </div>
-            </>
-          )}
-        </div>
+            ) : (
+              <React.Fragment>
+                <div style={{ marginBottom: '2vw' }}>
+                  <CreateProjectForm onCreated={handleProjectCreated} />
+                </div>
+                <div className="project-list" style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(44,62,80,0.08)', padding: '4vw', marginBottom: '2vw' }}>
+                  <h2 style={{ color: '#2b6cb0', fontSize: '5vw', margin: 0, marginBottom: '2vw', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span role="img" aria-label="project">📁</span> Select a Project
+                  </h2>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {projects.map(project => (
+                      <li key={project.id} style={{ marginBottom: 14 }}>
+                        <Link href={`/project/${project.id}`} style={{ textDecoration: 'none' }}>
+                          <button
+                            style={{ background: '#3182ce', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 18px', cursor: 'pointer', width: '100%', textAlign: 'left', fontSize: '4vw', fontWeight: 500 }}
+                          >
+                            {project.name}
+                          </button>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </React.Fragment>
+            )}
+          </div>
+        </React.Fragment>
       ) : (
         <LoginForm onLogin={setUser} />
       )}

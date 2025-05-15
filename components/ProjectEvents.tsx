@@ -160,6 +160,19 @@ export function ProjectEventsComponent() {
     } else {
       setCommentText('');
       handleSelectEvent(selectedEvent);
+      // Mark event notification as read after check-in
+      if (checkIn && user && projectId) {
+        if (typeof window !== 'undefined' && typeof (window as any).markEventNotificationRead === 'function') {
+          (window as any).markEventNotificationRead(selectedEvent.id, user.username, projectId);
+        } else if (typeof window !== 'undefined') {
+          // Dispatch custom event for Notifications to handle
+          window.dispatchEvent(new CustomEvent('eventNotificationRead', {
+            detail: { eventId: selectedEvent.id, username: user.username, projectId }
+          }));
+        }
+        // Optionally, trigger refresh of notifications
+        window.dispatchEvent(new Event('refreshNotifications'));
+      }
     }
     setLoading(false);
   };

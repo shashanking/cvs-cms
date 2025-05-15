@@ -8,6 +8,8 @@ import ProjectTasks from '../../components/ProjectTasks';
 import { ProjectEventsComponent } from '../../components/ProjectEvents';
 import ProjectMembers from '../../components/ProjectMembers';
 import Notifications from '../../components/Notifications';
+import ProjectChatButton from '../../components/ProjectChatButton';
+import ProjectChatNotification from '../../components/ProjectChatNotification';
 
 const FOLDER_LIST = ["finance", "tech", "invoices", "proposals", "reports", "media", "others"];
 
@@ -109,6 +111,8 @@ const ProjectPage: React.FC = () => {
         <ProjectMembers />
       </div>
     </main>
+      <ProjectChatNotification />
+      <ProjectChatButton />
     </ProjectProvider>
   );
 };

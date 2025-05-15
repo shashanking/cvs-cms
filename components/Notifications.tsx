@@ -15,6 +15,30 @@ interface NotificationItem {
 }
 
 const Notifications = () => {
+  useEffect(() => {
+    // Listen for mark-as-read events from ProjectEvents
+    function handleEventNotificationRead(e: any) {
+      if (e.detail && e.detail.eventId && e.detail.username && e.detail.projectId) {
+        markEventNotificationRead(e.detail.eventId, e.detail.username, e.detail.projectId).then(() => fetchNotifications());
+      }
+    }
+    function handleRefreshNotifications() {
+      fetchNotifications();
+    }
+    window.addEventListener('eventNotificationRead', handleEventNotificationRead);
+    window.addEventListener('refreshNotifications', handleRefreshNotifications);
+    // Attach markEventNotificationRead to window for direct calls
+    (window as any).markEventNotificationRead = async (eventId: number, username: string, projectId: string) => {
+      await markEventNotificationRead(eventId, username, projectId);
+      fetchNotifications();
+    };
+    return () => {
+      window.removeEventListener('eventNotificationRead', handleEventNotificationRead);
+      window.removeEventListener('refreshNotifications', handleRefreshNotifications);
+      delete (window as any).markEventNotificationRead;
+    };
+  }, []);
+
   const { user } = useUser();
   const { project } = useProject();
   const projectId = project?.id;
@@ -51,6 +75,7 @@ const Notifications = () => {
       console.log('Fetched event notifications:', eventNotifs);
     }
     setEventNotifications(eventNotifs || []);
+
     let uploads, previews, downloads;
     if (projectId) {
       // Project-specific notifications
@@ -437,5 +462,16 @@ const Notifications = () => {
     </>
   );
 };
+
+// Mark event notification as read
+// Mark an event notification as read in the DB
+async function markEventNotificationRead(eventId: number, username: string, projectId: string) {
+  await supabase
+    .from('event_notifications')
+    .update({ read: true })
+    .eq('event_id', eventId)
+    .eq('username', username)
+    .eq('project_id', projectId);
+}
 
 export default Notifications;

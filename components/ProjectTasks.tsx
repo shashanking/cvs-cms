@@ -17,6 +17,7 @@ interface TaskItem {
   created_at: string;
   updated_by?: string;
   updated_at?: string;
+  deadline: string | null;
 }
 
 const DEFAULT_MEMBERS = [
@@ -32,6 +33,7 @@ function ProjectTasksComponent({ members }: ProjectTasksProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [assignee, setAssignee] = useState('');
+  const [deadline, setDeadline] = useState('');
   const [status, setStatus] = useState('open');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +65,10 @@ function ProjectTasksComponent({ members }: ProjectTasksProps) {
       setError('Project not loaded yet.');
       return;
     }
+    if (!deadline) {
+      setError('Deadline is required.');
+      return;
+    }
     setLoading(true);
     setError(null);
     const { data, error } = await supabase.from('project_tasks').insert([
@@ -72,6 +78,7 @@ function ProjectTasksComponent({ members }: ProjectTasksProps) {
         description,
         assignee,
         status,
+        deadline,
         created_by: user.username
       }
     ]);
@@ -79,6 +86,7 @@ function ProjectTasksComponent({ members }: ProjectTasksProps) {
     setTitle('');
     setDescription('');
     setAssignee('');
+    setDeadline('');
     setStatus('open');
     fetchTasks();
     setLoading(false);
@@ -91,7 +99,7 @@ function ProjectTasksComponent({ members }: ProjectTasksProps) {
       <form onSubmit={handleCreateTask} style={{
         marginBottom: 20,
         display: 'flex',
-        gap: '2vw',
+        gap: 8,
         flexWrap: 'wrap',
         alignItems: 'center',
         background: '#fff',
@@ -99,18 +107,48 @@ function ProjectTasksComponent({ members }: ProjectTasksProps) {
         padding: '3vw 2vw',
         boxShadow: '0 1px 6px rgba(44,62,80,0.08)'
       }}>
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Task title" required style={{ minWidth: 120, flex: 1, fontSize: '4vw', padding: '2vw', borderRadius: 6, border: '1px solid #cbd5e0' }} />
-        <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Description" style={{ minWidth: 120, flex: 2, fontSize: '4vw', padding: '2vw', borderRadius: 6, border: '1px solid #cbd5e0' }} />
-        <select value={assignee} onChange={e => setAssignee(e.target.value)} required style={{ fontSize: '4vw', padding: '2vw', borderRadius: 6, border: '1px solid #cbd5e0' }}>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Task title"
+          required
+          style={{ minWidth: 120, flex: 1, fontSize: '1rem', padding: 8, borderRadius: 6, border: '1px solid #cbd5e0' }}
+        />
+        <input
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="Description"
+          style={{ minWidth: 120, flex: 2, fontSize: '1rem', padding: 8, borderRadius: 6, border: '1px solid #cbd5e0' }}
+        />
+        <input
+          type="datetime-local"
+          value={deadline}
+          onChange={e => setDeadline(e.target.value)}
+          placeholder="Deadline"
+          required
+          style={{ minWidth: 180, flex: 1, fontSize: '1rem', padding: 8, borderRadius: 6, border: '1px solid #cbd5e0' }}
+        />
+        <select
+          value={assignee}
+          onChange={e => setAssignee(e.target.value)}
+          required
+          style={{ fontSize: '1rem', padding: 8, borderRadius: 6, border: '1px solid #cbd5e0' }}
+        >
           <option value="">Assign to...</option>
-          {memberList.map(m => <option key={m} value={m}>{m}</option>)}
+          {memberList.map(m => (
+            <option key={m} value={m}>{m}</option>
+          ))}
         </select>
-        <select value={status} onChange={e => setStatus(e.target.value)} style={{ fontSize: '4vw', padding: '2vw', borderRadius: 6, border: '1px solid #cbd5e0' }}>
+        <select
+          value={status}
+          onChange={e => setStatus(e.target.value)}
+          style={{ fontSize: '1rem', padding: 8, borderRadius: 6, border: '1px solid #cbd5e0' }}
+        >
           <option value="open">Open</option>
           <option value="in_progress">In Progress</option>
           <option value="closed">Closed</option>
         </select>
-        <button type="submit" disabled={loading} style={{ fontSize: '4vw', padding: '2vw 4vw', borderRadius: 6, background: '#3182ce', color: '#fff', border: 'none' }}>Create Task</button>
+        <button type="submit" disabled={loading || !title || !assignee || !deadline} style={{ background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontWeight: 600, fontSize: 15, cursor: 'pointer' }}>Add Task</button>
       </form>
       {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
       <div>
@@ -200,8 +238,14 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, user, members }) => {
     <li style={{ marginBottom: 10, background: '#f7fafc', borderRadius: 6, padding: 10, border: '1px solid #e2e8f0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <strong>{task.title}</strong> <span style={{ color: '#888', fontSize: 13 }}>({task.status})</span><br />
-          <span style={{ fontSize: 13 }}>{task.description}</span><br />
+          <strong>{task.title}</strong>
+          <span style={{ color: '#3182ce', fontSize: 13 }}>({task.status})</span><br />
+          <span style={{ fontSize: 13 }}>{task.description}</span>
+          {task.deadline && (
+            <div style={{ fontSize: 13, color: '#ef4444', fontWeight: 600 }}>
+              Deadline: {new Date(task.deadline).toLocaleString()}
+            </div>
+          )}
           <span style={{ fontSize: 12, color: '#666' }}>Assignee: {task.assignee} | Created by {task.created_by} at {new Date(task.created_at).toLocaleString()}</span>
         </div>
         <button onClick={() => setExpanded(e => !e)} style={{ marginLeft: 16 }}>{expanded ? 'Hide' : 'Details'}</button>

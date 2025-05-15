@@ -1,0 +1,46 @@
+.calendarWrapper {
+  background: #fff;
+  border-radius: 1.2em;
+  box-shadow: 0 2px 12px rgba(44,62,80,0.08);
+  padding: 2vw;
+  margin: 0 auto 2vw auto;
+  max-width: 1000px;
+  min-height: 420px;
+}
+
+@media (max-width: 700px) {
+  .calendarWrapper {
+    padding: 2vw 1vw;
+    max-width: 98vw;
+    min-width: 0;
+  }
+  .fc .fc-toolbar-title {
+    font-size: 1.1em;
+  }
+  .fc .fc-button {
+    font-size: 0.95em;
+    padding: 0.4em 0.7em;
+  }
+  .fc .fc-daygrid-day-number {
+    font-size: 1em;
+  }
+}
+
+.fc {
+  font-family: 'Inter', Arial, sans-serif;
+}
+
+.fc-event {
+  border-radius: 8px;
+  font-size: 0.98em;
+  padding: 2px 8px;
+  font-weight: 500;
+}
+
+.fc-daygrid-event-dot {
+  border-radius: 50%;
+}
+
+.fc-toolbar {
+  margin-bottom: 1.2em;
+}

@@ -18,7 +18,7 @@ interface ProjectFoldersPropsWithCallback extends ProjectFoldersProps {
   onFileAction?: () => void;
 }
 
-export default function ProjectFolders({ folders, onFileAction }: ProjectFoldersPropsWithCallback) {
+export default function ProjectFolders({ onFileAction }: ProjectFoldersPropsWithCallback) {
   const { user } = useUser();
   const { project } = useProject();
   const projectId = project?.id;
@@ -32,7 +32,7 @@ export default function ProjectFolders({ folders, onFileAction }: ProjectFolders
   const [auditRefresh, setAuditRefresh] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<'image' | 'pdf' | null>(null);
-  const [dbFolders, setDbFolders] = useState<string[]>([]);
+  const [dbFolders, setDbFolders] = useState<string[]>([]); // Only folders from DB
   const [newFolder, setNewFolder] = useState<string>('');
   const [folderLoading, setFolderLoading] = useState<string | null>(null);
 
@@ -189,7 +189,7 @@ export default function ProjectFolders({ folders, onFileAction }: ProjectFolders
             </h3>
             <div style={{ position: 'relative', marginBottom: 24 }}>
               <div style={{ display: 'flex', overflowX: 'auto', gap: 18, paddingBottom: 8 }}>
-                {(dbFolders.length > 0 ? dbFolders : folders).map((folder) => (
+                {dbFolders.map((folder) => (
                   <div key={folder} style={{ minWidth: 120, background: '#f1f5f9', borderRadius: 12, boxShadow: '0 2px 8px #e3f0ff', border: '1.5px solid #c3dafc', padding: '18px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', transition: 'box-shadow 0.2s', cursor: 'pointer' }}
                     onClick={() => loadFiles(folder)}
                     tabIndex={0}
@@ -228,7 +228,7 @@ export default function ProjectFolders({ folders, onFileAction }: ProjectFolders
                   onSubmit={async (e) => {
                     e.preventDefault();
                     const folderName = newFolder.trim();
-                    if (!folderName || folders.includes(folderName)) return;
+                    if (!folderName || dbFolders.includes(folderName)) return;
                     setFolderLoading(folderName);
                     const res = await fetch('/api/folder', {
                       method: 'POST',
