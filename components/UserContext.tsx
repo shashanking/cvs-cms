@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 
 interface User {
   username: string;
+  display_name: string;
   role: string;
 }
 
@@ -13,22 +14,22 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('cvs-cms-user');
       if (stored) {
         try {
-          return JSON.parse(stored);
+          setUser(JSON.parse(stored));
         } catch {}
       }
+      setLoading(false);
     }
-    return null;
-  });
-
-  // Optionally: future sync logic here
-  useEffect(() => {
-    // No-op for now, but can listen for storage events if needed
   }, []);
+
+  if (loading) return null; // or a spinner
 
   return (
     <UserContext.Provider value={{ user, setUser }}>

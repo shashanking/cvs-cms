@@ -1,11 +1,13 @@
 import { useRouter } from 'next/router';
 import React, { useEffect, useState } from 'react';
 import { useUser } from '../../components/UserContext';
+import { ProjectProvider } from '../../components/ProjectContext';
 import { supabase } from '../../lib/supabaseClient';
 import ProjectFolders from '../../components/ProjectFolders';
 import ProjectTasks from '../../components/ProjectTasks';
-import ProjectEvents from '../../components/ProjectEvents';
+import { ProjectEventsComponent } from '../../components/ProjectEvents';
 import ProjectMembers from '../../components/ProjectMembers';
+import Notifications from '../../components/Notifications';
 
 const FOLDER_LIST = ["finance", "tech", "invoices", "proposals", "reports", "media", "others"];
 
@@ -34,7 +36,10 @@ const ProjectPage: React.FC = () => {
   if (!project) return <div style={{ padding: 24 }}>Project not found.</div>;
 
   return (
-    <main className="cvs-main" style={{
+    <ProjectProvider>
+      <ProjectContextSetter project={project} />
+      <Notifications />
+      <main className="cvs-main" style={{
       padding: '4vw 2vw',
       maxWidth: 900,
       margin: '0 auto',
@@ -48,7 +53,10 @@ const ProjectPage: React.FC = () => {
           try {
             const stored = localStorage.getItem('cvs-cms-user');
             if (stored) {
-              setUser(JSON.parse(stored));
+              try {
+                const parsed = JSON.parse(stored);
+                setUser(parsed);
+              } catch {}
             }
           } catch {}
           router.push('/');
@@ -74,7 +82,7 @@ const ProjectPage: React.FC = () => {
         <h2 style={{ color: '#2563eb', fontSize: '1.5rem', margin: 0, marginBottom: '2vw', display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
           <span style={{ fontSize: '1.5rem' }}>🗂️</span> Folders
         </h2>
-        <ProjectFolders projectId={project.id} user={{ username: project.created_by, role: 'owner' }} folders={FOLDER_LIST} />
+        <ProjectFolders folders={FOLDER_LIST} />
       </div>
 
       {/* Tasks Section */}
@@ -82,7 +90,7 @@ const ProjectPage: React.FC = () => {
         <h2 style={{ color: '#2563eb', fontSize: '1.5rem', margin: 0, marginBottom: '2vw', display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
           <span style={{ fontSize: '1.5rem' }}>✅</span> Tasks
         </h2>
-        <ProjectTasks projectId={project.id} user={{ username: project.created_by, role: 'owner' }} />
+        <ProjectTasks />
       </div>
 
       {/* Events Section */}
@@ -90,7 +98,7 @@ const ProjectPage: React.FC = () => {
         <h2 style={{ color: '#2563eb', fontSize: '1.5rem', margin: 0, marginBottom: '2vw', display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
           <span style={{ fontSize: '1.5rem' }}>📅</span> Events
         </h2>
-        <ProjectEvents projectId={project.id} user={{ username: project.created_by, role: 'owner' }} />
+        <ProjectEvents />
       </div> */}
 
       {/* Members Section */}
@@ -98,10 +106,21 @@ const ProjectPage: React.FC = () => {
         <h2 style={{ color: '#2563eb', fontSize: '1.5rem', margin: 0, marginBottom: '2vw', display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
           <span style={{ fontSize: '1.5rem' }}>👥</span> Members
         </h2>
-        <ProjectMembers projectId={project.id} user={{ username: project.created_by, role: 'owner' }} />
+        <ProjectMembers />
       </div>
     </main>
+    </ProjectProvider>
   );
 };
+
+// Helper to set project in context after fetch
+import { useProject } from '../../components/ProjectContext';
+function ProjectContextSetter({ project }: { project: any }) {
+  const { setProject } = useProject();
+  React.useEffect(() => {
+    setProject(project);
+  }, [project, setProject]);
+  return null;
+}
 
 export default ProjectPage;

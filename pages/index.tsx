@@ -73,7 +73,8 @@ export default function Home() {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('cvs-cms-user');
-  };
+  } // user.display_name is now available everywhere
+
 
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
@@ -130,10 +131,10 @@ export default function Home() {
               </h2>
               <div className="desktop-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '3vw' }}>
                 <div className="folders-section" style={{ background: '#f7fafc', borderRadius: 8, padding: '3vw 2vw', boxShadow: '0 1px 6px rgba(44,62,80,0.04)' }}>
-                  <ProjectFolders projectId={selectedProject.id} user={user} folders={FOLDER_LIST} />
+                  <ProjectFolders folders={FOLDER_LIST} />
                 </div>
                 <div className="tasks-section" style={{ background: '#f7fafc', borderRadius: 8, padding: '3vw 2vw', boxShadow: '0 1px 6px rgba(44,62,80,0.04)' }}>
-                  <ProjectTasks projectId={selectedProject.id} user={user} />
+                  <ProjectTasks />
                 </div>
               </div>
             </div>

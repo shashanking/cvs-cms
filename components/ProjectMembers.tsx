@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useUser } from './UserContext';
+import { useProject } from './ProjectContext';
 
 interface ProjectMembersProps {
-  projectId: string;
-  user: { username: string; role: string };
 }
 
 interface MemberItem {
@@ -13,7 +13,11 @@ interface MemberItem {
   joined_at: string;
 }
 
-const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, user }) => {
+function ProjectMembersComponent() {
+  const { user } = useUser();
+  const { project } = useProject();
+  const projectId = project?.id;
+
   const [members, setMembers] = useState<MemberItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,10 +25,12 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, user }) => {
   const [inviteRole, setInviteRole] = useState('member');
 
   useEffect(() => {
+    if (!projectId) return;
     fetchMembers();
   }, [projectId]);
 
   const fetchMembers = async () => {
+    if (!projectId) return;
     setLoading(true);
     setError(null);
     const { data, error } = await supabase
@@ -39,6 +45,10 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, user }) => {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!projectId) {
+      setError('Project not loaded yet.');
+      return;
+    }
     setLoading(true);
     setError(null);
     const { error } = await supabase.from('project_members').insert([
@@ -57,6 +67,10 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, user }) => {
 
   const handleRemove = async (member: MemberItem) => {
     if (!window.confirm(`Remove ${member.username} from project?`)) return;
+    if (!projectId) {
+      setError('Project not loaded yet.');
+      return;
+    }
     setLoading(true);
     setError(null);
     const { error } = await supabase
@@ -69,6 +83,7 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, user }) => {
     setLoading(false);
   };
 
+  if (!projectId) return <div>Loading project members...</div>;
   return (
     <div style={{ margin: '24px 0' }}>
       <h3>Project Members</h3>
@@ -104,4 +119,4 @@ const ProjectMembers: React.FC<ProjectMembersProps> = ({ projectId, user }) => {
   );
 };
 
-export default ProjectMembers;
+export default ProjectMembersComponent;

@@ -1,14 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 
-const USERS = [
-  { username: 'pradip', role: 'FOUNDER' },
-  { username: 'shashank', role: 'FOUNDER' },
-  { username: 'vikash', role: 'FOUNDER' },
-  { username: 'sahil', role: 'FOUNDER' },
-  { username: 'sayan', role: 'FOUNDER' },
-  { username: 'rini', role: 'FOUNDER' },
-];
+import { supabase } from '../lib/supabaseClient';
 
 const CORPORATE_PASSWORD = 'cvs.admin.06.'; 
 
@@ -23,19 +16,32 @@ export default function LoginForm({ onLogin }: { onLogin: (user: { username: str
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const user = USERS.find(u => u.username === username);
-    if (!user) {
+    // Fetch user from the database
+    const { data, error: dbError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .single();
+    if (dbError || !data) {
       setError('You are not authorized to log in.');
       setLoading(false);
       return;
     }
-    if (password !== CORPORATE_PASSWORD) {
+    // Check password
+    if (password !== data.password && password !== CORPORATE_PASSWORD) {
       setError('Invalid password.');
       setLoading(false);
       return;
     }
     setLoading(false);
-    onLogin({ username: user.username, role: user.role });
+    // Store user in localStorage for persistence
+    const userObj = {
+      username: data.username,
+      display_name: data.display_name,
+      role: data.role
+    };
+    localStorage.setItem('cvs-cms-user', JSON.stringify(userObj));
+    onLogin(userObj);
     router.push('/');
   };
 

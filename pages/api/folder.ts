@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ folders: data });
   }
   if (req.method === 'POST') {
-    const { project_id, name, user } = req.body;
+    const { project_id, name, user, user_display } = req.body;
     if (!project_id || !name) return res.status(400).json({ error: 'Missing required fields' });
     // Insert into project_folders table
     const { data, error } = await supabase.from('project_folders').insert([{ project_id, name }]).select().single();
@@ -26,6 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         folder: name,
         file_name: null,
         uploaded_by: user || 'system',
+        uploaded_by_display: typeof user_display === 'string' ? user_display : '',
         uploaded_at: new Date().toISOString(),
         action: 'folder_created'
       }
@@ -33,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ folder: data });
   }
   if (req.method === 'DELETE') {
-    const { project_id, name, user } = req.body;
+    const { project_id, name, user, user_display } = req.body;
     if (!project_id || !name) return res.status(400).json({ error: 'Missing required fields' });
     // Remove from project_folders table
     const { error } = await supabase.from('project_folders').delete().eq('project_id', project_id).eq('name', name);

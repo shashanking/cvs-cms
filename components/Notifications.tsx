@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
-interface NotificationsProps {
-  projectId: string;
-  user: { username: string; role: string };
-}
+import { useUser } from './UserContext';
+import { useProject } from './ProjectContext';
+
+// Notifications now uses context for user and project
 
 interface NotificationItem {
   file_name: string;
@@ -14,7 +14,11 @@ interface NotificationItem {
   project_id: string;
 }
 
-const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
+const Notifications = () => {
+  const { user } = useUser();
+  const { project } = useProject();
+  const projectId = project?.id;
+
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [eventNotifications, setEventNotifications] = useState<any[]>([]); // event notifications
   // Removed showBanner and setShowBanner as banner/toast notifications are no longer needed.
@@ -38,8 +42,7 @@ const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
       .select('*')
       .eq('project_id', projectId)
       .eq('username', user.username)
-      .eq('read', false)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false });
     if (eventNotifError) {
       // eslint-disable-next-line no-console
       console.error('Event notification fetch error:', eventNotifError);
@@ -145,7 +148,7 @@ const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
     return () => {
       window.removeEventListener('refresh-notifications', handler);
     };
-  
+
     // Subscribe to real-time upload updates (to show notification)
     const channel = supabase.channel('file_upload_audit_notify')
       .on('postgres_changes', {
@@ -216,26 +219,26 @@ const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
           const isDownloaded = downloadedMap[n.file_name] && downloadedMap[n.file_name].includes(user.username);
           return !(isViewed || isDownloaded);
         }).length + eventNotifications.length) > 0 && (
-          <span style={{
-            position: 'absolute',
-            top: 2,
-            right: 2,
-            background: '#e53e3e',
-            color: '#fff',
-            borderRadius: '50%',
-            width: 18,
-            height: 18,
-            fontSize: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 'bold',
-          }}>{notifications.filter(n => {
-            const isViewed = viewedMap[n.file_name] && viewedMap[n.file_name].includes(user.username);
-            const isDownloaded = downloadedMap[n.file_name] && downloadedMap[n.file_name].includes(user.username);
-            return !(isViewed || isDownloaded);
-          }).length + eventNotifications.length}</span>
-        )}
+            <span style={{
+              position: 'absolute',
+              top: 2,
+              right: 2,
+              background: '#e53e3e',
+              color: '#fff',
+              borderRadius: '50%',
+              width: 18,
+              height: 18,
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 'bold',
+            }}>{notifications.filter(n => {
+              const isViewed = viewedMap[n.file_name] && viewedMap[n.file_name].includes(user.username);
+              const isDownloaded = downloadedMap[n.file_name] && downloadedMap[n.file_name].includes(user.username);
+              return !(isViewed || isDownloaded);
+            }).length + eventNotifications.length}</span>
+          )}
       </button>
       {/* Sidebar notification drawer */}
       <div
@@ -267,39 +270,53 @@ const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
               <React.Fragment>
                 {/* Show event notifications first */}
                 {eventNotifications.length > 0 && (
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                    {eventNotifications.map(ev => (
-                      <li
-                        key={ev.id}
-                        style={{
-                          marginBottom: 12,
-                          background: '#fffbe6',
-                          borderRadius: 6,
-                          padding: '8px 10px',
-                          border: '1.5px solid #ecc94b',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <div>
-                          <strong>Event:</strong> {ev.event_topic}<br />
-                          <span style={{ fontSize: 13, color: '#666' }}>by {ev.username} at {ev.created_at ? new Date(ev.created_at).toLocaleString() : ''}</span>
-                        </div>
-                        <span style={{
-                          background: ev.read ? '#38a169' : '#ecc94b',
-                          color: '#222',
-                          borderRadius: 12,
-                          padding: '2px 10px',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          marginLeft: 10,
-                          minWidth: 54,
-                          textAlign: 'center',
-                        }}>{ev.read ? 'Read' : 'Unread'}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <div style={{ maxHeight: 400, overflowY: 'auto', paddingRight: 6 }}>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {eventNotifications.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).map((ev: any) => {
+                        const isRead = !!ev.read;
+                        return (
+                          <li
+                            key={ev.id}
+                            style={{
+                              marginBottom: 8,
+                              background: isRead ? '#f7fafc' : '#fffbe6',
+                              borderRadius: 6,
+                              padding: '8px 10px',
+                              border: isRead ? '1px solid #e2e8f0' : '2px solid #fbbf24',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              justifyContent: 'space-between',
+                              boxShadow: isRead ? 'none' : '0 2px 8px #fbbf2422',
+                              transition: 'all 0.15s',
+                              minHeight: 32,
+                              maxWidth: '100%',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word', lineHeight: 1.4 }}>
+                                Event: {ev.event_topic}
+                              </div>
+                              <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                                by {ev.created_by} at {new Date(ev.created_at).toLocaleString()}
+                              </div>
+                            </div>
+                            <span style={{
+                              background: isRead ? '#38a169' : '#fbbf24',
+                              color: isRead ? '#fff' : '#92400e',
+                              borderRadius: 12,
+                              padding: '2px 12px',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              marginLeft: 10,
+                              minWidth: 54,
+                              textAlign: 'center',
+                            }}>{isRead ? 'Read' : 'Unread'}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 )}
                 {/* Then show file notifications */}
                 <ul style={{
@@ -320,14 +337,13 @@ const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
                         style={{
                           background: isRead ? '#f7fafc' : '#ebf8ff',
                           borderRadius: 10,
-                          padding: '4vw 3vw',
+                          padding: '1vw 1vw',
                           border: isRead ? '1px solid #e2e8f0' : '2px solid #3182ce',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           boxShadow: '0 1px 6px rgba(44,62,80,0.08)',
-                          fontSize: '4vw',
-                          marginBottom: '2vw',
+                          fontSize: '1vw',
                           minHeight: 48,
                           transition: 'background 0.2s, border 0.2s',
                         }}
@@ -389,8 +405,8 @@ const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
                                     }}
                                   >
                                     <div>
-                                      <strong>{n.file_name}</strong><br />
-                                      <span style={{ fontSize: 13, color: '#666' }}>by {n.uploaded_by} at {new Date(n.uploaded_at).toLocaleString()}</span>
+                                      <span style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word', lineHeight: 1.4 }}>{n.file_name}</span><br />
+                                      <span style={{ fontSize: 11, color: '#666', marginTop: 2 }}>by {n.uploaded_by} at {new Date(n.uploaded_at).toLocaleString()}</span>
                                     </div>
                                     <span style={{
                                       background: isRead ? '#38a169' : '#3182ce',

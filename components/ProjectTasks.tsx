@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useUser } from './UserContext';
+import { useProject } from './ProjectContext';
 
 interface ProjectTasksProps {
-  projectId: string;
-  user: { username: string; role: string };
   members?: string[]; // optional, for static member list
 }
 
@@ -23,7 +23,11 @@ const DEFAULT_MEMBERS = [
   'vikash', 'rini', 'pradip', 'shashank', 'sahil', 'sayan'
 ];
 
-const ProjectTasks: React.FC<ProjectTasksProps> = ({ projectId, user, members }) => {
+function ProjectTasksComponent({ members }: ProjectTasksProps) {
+  const { user } = useUser();
+  const { project } = useProject();
+  const projectId = project?.id;
+
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -35,10 +39,12 @@ const ProjectTasks: React.FC<ProjectTasksProps> = ({ projectId, user, members })
   const memberList = members || DEFAULT_MEMBERS;
 
   useEffect(() => {
+    if (!projectId) return;
     fetchTasks();
   }, [projectId]);
 
   const fetchTasks = async () => {
+    if (!projectId) return;
     setLoading(true);
     setError(null);
     const { data, error } = await supabase
@@ -53,6 +59,10 @@ const ProjectTasks: React.FC<ProjectTasksProps> = ({ projectId, user, members })
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!projectId) {
+      setError('Project not loaded yet.');
+      return;
+    }
     setLoading(true);
     setError(null);
     const { data, error } = await supabase.from('project_tasks').insert([
@@ -74,6 +84,7 @@ const ProjectTasks: React.FC<ProjectTasksProps> = ({ projectId, user, members })
     setLoading(false);
   };
 
+  if (!projectId) return <div>Loading project tasks...</div>;
   return (
     <div style={{ margin: '4vw 0' }}>
       <h3 style={{ fontSize: '5vw', marginBottom: '3vw', color: '#2b6cb0' }}>Project Tasks</h3>
@@ -124,7 +135,7 @@ const ProjectTasks: React.FC<ProjectTasksProps> = ({ projectId, user, members })
 // --- TaskDetail component ---
 type TaskDetailProps = {
   task: TaskItem;
-  user: { username: string; role: string };
+  user: { username: string; display_name: string; role: string };
   members: string[];
 };
 
@@ -228,4 +239,4 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, user, members }) => {
   );
 };
 
-export default ProjectTasks;
+export default ProjectTasksComponent;

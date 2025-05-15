@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import AuditLogs from './AuditLogs';
 import Notifications from './Notifications';
-import ProjectEvents from './ProjectEvents';
+import { ProjectEventsComponent } from './ProjectEvents';
+import { useUser } from './UserContext';
+import { useProject } from './ProjectContext';
 
 interface ProjectFoldersProps {
-  projectId: string;
   folders: string[];
-  user: { username: string; role: string };
 }
 
 function isValidUUID(uuid: string) {
@@ -18,7 +18,11 @@ interface ProjectFoldersPropsWithCallback extends ProjectFoldersProps {
   onFileAction?: () => void;
 }
 
-export default function ProjectFolders({ projectId, folders: initialFolders, user, onFileAction }: ProjectFoldersPropsWithCallback) {
+export default function ProjectFolders({ folders, onFileAction }: ProjectFoldersPropsWithCallback) {
+  const { user } = useUser();
+  const { project } = useProject();
+  const projectId = project?.id;
+
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [files, setFiles] = useState<any[]>([]);
   const [previewLogs, setPreviewLogs] = useState<Record<string, { usernames: string[] }>>({}); // fileName: { usernames }
@@ -28,7 +32,7 @@ export default function ProjectFolders({ projectId, folders: initialFolders, use
   const [auditRefresh, setAuditRefresh] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<'image' | 'pdf' | null>(null);
-  const [folders, setFolders] = useState<string[]>([]);
+  const [dbFolders, setDbFolders] = useState<string[]>([]);
   const [newFolder, setNewFolder] = useState<string>('');
   const [folderLoading, setFolderLoading] = useState<string | null>(null);
 
@@ -39,9 +43,9 @@ export default function ProjectFolders({ projectId, folders: initialFolders, use
       const res = await fetch('/api/folder?project_id=' + projectId);
       const data = await res.json();
       if (res.ok && Array.isArray(data.folders)) {
-        setFolders(data.folders.map((f: any) => f.name));
+        setDbFolders(data.folders.map((f: any) => f.name));
       } else {
-        setFolders([]);
+        setDbFolders([]);
       }
     })();
   }, [projectId]);
@@ -175,8 +179,8 @@ export default function ProjectFolders({ projectId, folders: initialFolders, use
 
   return (
     <div style={{ margin: '4vw 0' }}>
-      <ProjectEvents projectId={projectId} user={user} />
-      <Notifications projectId={projectId} user={user} />
+      <ProjectEventsComponent />
+      <Notifications />
       <div>
         {(!selectedFolder) ? (
           <div>
@@ -185,7 +189,7 @@ export default function ProjectFolders({ projectId, folders: initialFolders, use
             </h3>
             <div style={{ position: 'relative', marginBottom: 24 }}>
               <div style={{ display: 'flex', overflowX: 'auto', gap: 18, paddingBottom: 8 }}>
-                {folders.map(folder => (
+                {(dbFolders.length > 0 ? dbFolders : folders).map((folder) => (
                   <div key={folder} style={{ minWidth: 120, background: '#f1f5f9', borderRadius: 12, boxShadow: '0 2px 8px #e3f0ff', border: '1.5px solid #c3dafc', padding: '18px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', transition: 'box-shadow 0.2s', cursor: 'pointer' }}
                     onClick={() => loadFiles(folder)}
                     tabIndex={0}
@@ -207,7 +211,7 @@ export default function ProjectFolders({ projectId, folders: initialFolders, use
                           body: JSON.stringify({ project_id: projectId, name: folder, user: user.username })
                         });
                         if (res.ok) {
-                          setFolders((prev) => prev.filter(f => f !== folder));
+                          setDbFolders((prev) => prev.filter(f => f !== folder));
                         } else {
                           const data = await res.json();
                           setError(data.error || 'Could not delete folder');
@@ -233,7 +237,7 @@ export default function ProjectFolders({ projectId, folders: initialFolders, use
                     });
                     const data = await res.json();
                     if (res.ok && data.folder) {
-                      setFolders((prev) => [...prev, data.folder.name]);
+                      setDbFolders((prev) => [...prev, data.folder.name]);
                       setNewFolder('');
                     } else {
                       setError(data.error || 'Could not add folder');

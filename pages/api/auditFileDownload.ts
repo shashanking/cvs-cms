@@ -44,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       downloadedArr.push({ username: downloaded_by, downloaded_at });
       const { error: updateError } = await supabase
         .from('file_upload_audit')
-        .update({ downloaded_by_users: downloadedArr, action: 'download', uploaded_by: actualUploader })
+        .update({ downloaded_by_users: downloadedArr, action: 'download' })
         .eq('id', log.id);
       if (updateError) return res.status(500).json({ error: updateError.message });
       return res.status(200).json({ updated: true });
@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let arr: any[] = [];
     if (downloaded_by !== actualUploader) arr = [{ username: downloaded_by, downloaded_at }];
     const { error } = await supabase.from('file_upload_audit').insert([
-      { project_id, folder, file_name, downloaded_by_users: arr, action: 'download', uploaded_by: actualUploader }
+      { project_id, folder, file_name, downloaded_by_users: arr, action: 'download' }
     ]);
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ success: true });

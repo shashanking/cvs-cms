@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useUser } from './UserContext';
+import { useProject } from './ProjectContext';
 
 interface ProjectEventsProps {
-  projectId: string;
-  user: { username: string; role: string };
 }
 
 interface EventItem {
@@ -25,7 +25,10 @@ interface CommentItem {
   created_at: string;
 }
 
-const ProjectEvents: React.FC<ProjectEventsProps> = ({ projectId, user }) => {
+export function ProjectEventsComponent() {
+  const { user } = useUser();
+  const { project } = useProject();
+  const projectId = project?.id;
   const [events, setEvents] = useState<EventItem[]>([]);
   const [topic, setTopic] = useState('');
   const [description, setDescription] = useState('');
@@ -38,10 +41,12 @@ const ProjectEvents: React.FC<ProjectEventsProps> = ({ projectId, user }) => {
   const [commentText, setCommentText] = useState('');
 
   useEffect(() => {
+    if (!projectId) return;
     fetchEvents();
   }, [projectId]);
 
   const fetchEvents = async () => {
+    if (!projectId) return;
     setLoading(true);
     setError(null);
     const { data, error } = await supabase
@@ -56,6 +61,10 @@ const ProjectEvents: React.FC<ProjectEventsProps> = ({ projectId, user }) => {
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!projectId) {
+      setError('Project not loaded yet.');
+      return;
+    }
     setLoading(true);
     setError(null);
     const res = await fetch('/api/event', {
@@ -155,9 +164,10 @@ const ProjectEvents: React.FC<ProjectEventsProps> = ({ projectId, user }) => {
     setLoading(false);
   };
 
+  if (!projectId) return <div>Loading project events...</div>;
   return (
-    <div style={{ margin: '24px 0' }}>
-      <h3>Project Events</h3>
+    <div style={{ margin: '4vw 0' }}>
+      <h3 style={{ fontSize: '5vw', marginBottom: '3vw', color: '#2563eb' }}>Events</h3>
       <form onSubmit={handleCreateEvent} style={{ marginBottom: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Event topic" required style={{ minWidth: 180 }} />
         <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Description" style={{ minWidth: 220 }} />
@@ -288,6 +298,4 @@ const ProjectEvents: React.FC<ProjectEventsProps> = ({ projectId, user }) => {
       </div>
     </div>
   );
-};
-
-export default ProjectEvents;
+}
