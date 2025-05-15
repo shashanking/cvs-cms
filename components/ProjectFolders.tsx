@@ -266,104 +266,202 @@ export default function ProjectFolders({ projectId, folders: initialFolders, use
             <h3 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#2563eb', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: '1.3rem' }}>📁</span> {selectedFolder}
             </h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 18 }}>
-              <input type="file" onChange={handleUpload} disabled={uploading} style={{ fontSize: 15 }} />
-              {uploading && <span style={{ color: '#2563eb', fontWeight: 500 }}>Uploading...</span>}
-            </div>
+            <div className="file-actions-row">
+  <input type="file" onChange={handleUpload} disabled={uploading} style={{ fontSize: 15, height: 40, borderRadius: 6, border: '1px solid #cbd5e1', padding: '0 10px', background: '#fff' }} />
+  <button
+    style={{ background: '#34a853', color: '#fff', border: 'none', borderRadius: 6, padding: '0 18px', height: 40, fontWeight: 600, cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+    onClick={async () => {
+                  const url = window.prompt('Paste Google Doc or Sheet link:');
+                  if (!url) return;
+                  const name = window.prompt('Display name (optional):') || 'Google Doc/Sheet';
+                  const type = url.includes('spreadsheets') ? 'google_sheet' : 'google_doc';
+                  // Audit and notify as with file upload
+                  await fetch('/api/auditFileUpload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      project_id: projectId,
+                      folder: selectedFolder,
+                      file_name: name,
+                      uploaded_by: user.username,
+                      uploaded_at: new Date().toISOString(),
+                      is_google_link: true,
+                      url,
+                      type
+                    }),
+                  });
+                  await fetch('/api/notifyFileUpload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      project_id: projectId,
+                      folder: selectedFolder,
+                      file_name: name,
+                      uploaded_by: user.username,
+                      uploaded_at: new Date().toISOString(),
+                      is_google_link: true,
+                      url,
+                      type
+                    }),
+                  });
+                  setFiles(prev => [
+                    ...prev,
+                    { name, url, type }
+                  ]);
+                }}
+                title="Add Google Doc or Sheet"
+              >
+                <span style={{ fontSize: 18 }}>📄</span> Add Google Doc/Sheet
+              </button>
+              {uploading && <span style={{ color: '#2563eb', fontWeight: 500, marginLeft: 12 }}>Uploading...</span>}
+</div>
+<style jsx>{`
+  .file-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  @media (max-width: 600px) {
+    .file-actions-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+    .file-actions-row input,
+    .file-actions-row button {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+`}</style>
             {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 18 }}>
               {files.length === 0 && <div style={{ color: '#888', fontSize: 15, padding: 16, borderRadius: 8, background: '#f7fafc', textAlign: 'center' }}>No files yet.</div>}
               {files.map((file: any) => {
-                const allViewed = Array.isArray(previewLogs[file.name]?.usernames) && previewLogs[file.name].usernames.length >= 6;
-                const allDownloaded = Array.isArray(downloadLogs[file.name]?.usernames) && downloadLogs[file.name]?.uploaded_by && downloadLogs[file.name].usernames.filter(u => u !== downloadLogs[file.name].uploaded_by).length >= 5;
-                return (
-                  <div key={file.name} style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px #e3f0ff', border: '1.5px solid #e3e7ef', padding: 16, display: 'flex', flexDirection: 'column', gap: 8, position: 'relative', transition: 'box-shadow 0.2s', minHeight: 100 }}>
-                    <div style={{ fontWeight: 600, color: '#222', fontSize: 15, marginBottom: 2, wordBreak: 'break-all' }}>{file.name}</div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                // Google Doc/Sheet special rendering
+                if (file.type === 'google_doc' || file.type === 'google_sheet') {
+                  return (
+                    <div key={file.name + file.url} style={{ background: '#f8fafc', borderRadius: 12, border: '1.5px solid #e3e7ef', padding: 16, display: 'flex', flexDirection: 'column', gap: 8, position: 'relative', minHeight: 80 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 22 }}>{file.type === 'google_sheet' ? '🟩' : '📄'}</span>
+                        <a href={file.url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, color: '#2563eb', fontSize: 15, textDecoration: 'underline' }}>{file.name}</a>
+                        <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>{file.type === 'google_sheet' ? 'Google Sheet' : 'Google Doc'}</span>
+                      </div>
                       <button
-                        style={{ color: '#3182ce', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
-                        title="Download"
-                        onClick={async () => {
-                          const log = downloadLogs[file.name] || { usernames: [], uploaded_by: '' };
-                          if (user.username !== log.uploaded_by && !log.usernames.includes(user.username)) {
-                            await fetch('/api/auditFileDownload', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                project_id: projectId,
-                                folder: selectedFolder,
-                                file_name: file.name,
-                                downloaded_by: user.username,
-                                downloaded_at: new Date().toISOString(),
-                                uploaded_by: log.uploaded_by,
-                              }),
-                            });
-                            setDownloadLogs(prev => ({
-                              ...prev,
-                              [file.name]: {
-                                usernames: [...(prev[file.name]?.usernames || []), user.username],
-                                uploaded_by: log.uploaded_by,
-                              }
-                            }));
-                            loadAuditLogs();
-                          }
-                          const { data } = supabase.storage.from('media').getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);
-                          window.open(data.publicUrl, '_blank');
-                        }}
-                      >⬇️</button>
-                      <button
-                        style={{ color: '#38a169', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
-                        title="Preview"
-                        onClick={async () => {
-                          const viewedBy = previewLogs[file.name]?.usernames || [];
-                          if (!viewedBy.includes(user.username)) {
-                            await fetch('/api/auditFilePreview', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                project_id: projectId,
-                                folder: selectedFolder,
-                                file_name: file.name,
-                                previewed_by: user.username,
-                                previewed_at: new Date().toISOString(),
-                              }),
-                            });
-                            setPreviewLogs(prev => ({ ...prev, [file.name]: { usernames: [...(prev[file.name]?.usernames || []), user.username] } }));
-                            if (onFileAction) onFileAction();
-                          }
-                          const { data } = supabase.storage.from('media').getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);
-                          setPreviewUrl(data.publicUrl);
-                          setPreviewType(file.name.match(/\.pdf$/i) ? 'pdf' : 'image');
-                        }}
-                      >👁️</button>
-                      <button
-                        style={{ color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
-                        title="Delete file"
-                        onClick={async () => {
-                          if (!window.confirm('Delete this file?')) return;
-                          await fetch('/api/deleteFile', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              project_id: projectId,
-                              folder: selectedFolder,
-                              file_path: `projects/${projectId}/${selectedFolder}/${file.name}`,
-                              deleted_by: user.username,
-                              deleted_at: new Date().toISOString(),
-                            }),
-                          });
-                          loadFiles(selectedFolder);
-                          loadAuditLogs();
-                        }}
+                        style={{ color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, position: 'absolute', top: 10, right: 10 }}
+                        title="Remove link"
+                        onClick={() => setFiles(prev => prev.filter(f => f !== file))}
                       >🗑️</button>
                     </div>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      {allViewed && <span style={{ background: '#e6fffa', color: '#38a169', fontWeight: 600, fontSize: 12, borderRadius: 8, padding: '2px 8px' }}>All viewed</span>}
-                      {allDownloaded && <span style={{ background: '#e0e7ff', color: '#2563eb', fontWeight: 600, fontSize: 12, borderRadius: 8, padding: '2px 8px' }}>All downloaded</span>}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+    return (
+      <div key={file.name + file.url} style={{ background: '#f8fafc', borderRadius: 12, border: '1.5px solid #e3e7ef', padding: 16, display: 'flex', flexDirection: 'column', gap: 8, position: 'relative', minHeight: 80 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 22 }}>{file.type === 'google_sheet' ? '🟩' : '📄'}</span>
+          <a href={file.url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, color: '#2563eb', fontSize: 15, textDecoration: 'underline' }}>{file.name}</a>
+          <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>{file.type === 'google_sheet' ? 'Google Sheet' : 'Google Doc'}</span>
+        </div>
+        <button
+          style={{ color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, position: 'absolute', top: 10, right: 10 }}
+          title="Remove link"
+          onClick={() => setFiles(prev => prev.filter(f => f !== file))}
+        >🗑️</button>
+      </div>
+    );
+  }
+  // Regular file rendering
+  const allViewed = Array.isArray(previewLogs[file.name]?.usernames) && previewLogs[file.name].usernames.length >= 6;
+  const allDownloaded = Array.isArray(downloadLogs[file.name]?.usernames) && downloadLogs[file.name]?.uploaded_by && downloadLogs[file.name].usernames.filter(u => u !== downloadLogs[file.name].uploaded_by).length >= 5;
+  return (
+    <div key={file.name} style={{ background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px #e3f0ff', border: '1.5px solid #e3e7ef', padding: 16, display: 'flex', flexDirection: 'column', gap: 8, position: 'relative', transition: 'box-shadow 0.2s', minHeight: 100 }}>
+      <div style={{ fontWeight: 600, color: '#222', fontSize: 15, marginBottom: 2, wordBreak: 'break-all' }}>{file.name}</div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+        <button
+          style={{ color: '#3182ce', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
+          title="Download"
+          onClick={async () => {
+            const log = downloadLogs[file.name] || { usernames: [], uploaded_by: '' };
+            if (user.username !== log.uploaded_by && !log.usernames.includes(user.username)) {
+              await fetch('/api/auditFileDownload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  project_id: projectId,
+                  folder: selectedFolder,
+                  file_name: file.name,
+                  downloaded_by: user.username,
+                  downloaded_at: new Date().toISOString(),
+                  uploaded_by: log.uploaded_by,
+                }),
+              });
+              setDownloadLogs(prev => ({
+                ...prev,
+                [file.name]: {
+                  usernames: [...(prev[file.name]?.usernames || []), user.username],
+                  uploaded_by: log.uploaded_by,
+                }
+              }));
+              loadAuditLogs();
+            }
+            const { data } = supabase.storage.from('media').getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);
+            window.open(data.publicUrl, '_blank');
+          }}
+        >⬇️</button>
+        <button
+          style={{ color: '#38a169', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
+          title="Preview"
+          onClick={async () => {
+            const viewedBy = previewLogs[file.name]?.usernames || [];
+            if (!viewedBy.includes(user.username)) {
+              await fetch('/api/auditFilePreview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  project_id: projectId,
+                  folder: selectedFolder,
+                  file_name: file.name,
+                  previewed_by: user.username,
+                  previewed_at: new Date().toISOString(),
+                }),
+              });
+              setPreviewLogs(prev => ({ ...prev, [file.name]: { usernames: [...(prev[file.name]?.usernames || []), user.username] } }));
+              if (onFileAction) onFileAction();
+            }
+            const { data } = supabase.storage.from('media').getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);
+            setPreviewUrl(data.publicUrl);
+            setPreviewType(file.name.match(/\.pdf$/i) ? 'pdf' : 'image');
+          }}
+        >👁️</button>
+        <button
+          style={{ color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
+          title="Delete file"
+          onClick={async () => {
+            if (!window.confirm('Delete this file?')) return;
+            await fetch('/api/deleteFile', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                project_id: projectId,
+                folder: selectedFolder,
+                file_path: `projects/${projectId}/${selectedFolder}/${file.name}`,
+                deleted_by: user.username,
+                deleted_at: new Date().toISOString(),
+              }),
+            });
+            loadFiles(selectedFolder);
+            loadAuditLogs();
+          }}
+        >🗑️</button>
+      </div>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        {allViewed && <span style={{ background: '#e6fffa', color: '#38a169', fontWeight: 600, fontSize: 12, borderRadius: 8, padding: '2px 8px' }}>All viewed</span>}
+        {allDownloaded && <span style={{ background: '#e0e7ff', color: '#2563eb', fontWeight: 600, fontSize: 12, borderRadius: 8, padding: '2px 8px' }}>All downloaded</span>}
+      </div>
+    </div>
+  );
+})}
             </div>
             <hr />
             <AuditLogs key={auditRefresh} projectId={projectId} folder={selectedFolder} />

@@ -13,15 +13,21 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const stored = localStorage.getItem('cvs-cms-user');
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {}
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('cvs-cms-user');
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch {}
+      }
     }
+    return null;
+  });
+
+  // Optionally: future sync logic here
+  useEffect(() => {
+    // No-op for now, but can listen for storage events if needed
   }, []);
 
   return (

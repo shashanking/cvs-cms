@@ -17,7 +17,7 @@ interface NotificationItem {
 const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [eventNotifications, setEventNotifications] = useState<any[]>([]); // event notifications
-  const [showBanner, setShowBanner] = useState<NotificationItem | null>(null);
+  // Removed showBanner and setShowBanner as banner/toast notifications are no longer needed.
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewedMap, setViewedMap] = useState<Record<string, string[]>>({});
   const [downloadedMap, setDownloadedMap] = useState<Record<string, string[]>>({});
@@ -134,33 +134,7 @@ const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
       const isDownloaded = allDownloadedUsernames.includes(user.username);
       return !(isViewed || isDownloaded);
     }));
-    // Show banner for the latest unread notification
-    const unread = allNotifs.filter((u: any) => {
-      const allViewedUsernames = (previews || [])
-        .filter((p: any) => p.file_name === u.file_name)
-        .flatMap((p: any) => Array.isArray(p.viewed_by_users) ? p.viewed_by_users.map((v: any) => v.username) : []);
-      const allDownloadedUsernames = (downloads || [])
-        .filter((d: any) => d.file_name === u.file_name)
-        .flatMap((d: any) => Array.isArray(d.downloaded_by_users) ? d.downloaded_by_users.map((v: any) => v.username) : []);
-      const isViewed = allViewedUsernames.includes(user.username);
-      const isDownloaded = allDownloadedUsernames.includes(user.username);
-      return !(isViewed || isDownloaded);
-    });
-    // Show a banner for each unread file, in sequence
-    if (unread.length > 0) {
-      let i = 0;
-      const showNextBanner = () => {
-        setShowBanner(unread[i]);
-        setTimeout(() => {
-          setShowBanner(null);
-          i++;
-          if (i < unread.length) {
-            setTimeout(showNextBanner, 600); // short gap between banners
-          }
-        }, 3000);
-      };
-      showNextBanner();
-    }
+    // Removed banner/toast notification logic for unread notifications. All notifications are now only shown in the sidebar/main notification UI.
   };
 
   useEffect(() => {
@@ -181,16 +155,7 @@ const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
         filter: `action=eq.upload`
       }, (payload) => {
         const newUpload = payload.new;
-        if (newUpload && newUpload.uploaded_by !== user.username) {
-          setShowBanner({
-            file_name: newUpload.file_name,
-            folder: newUpload.folder,
-            uploaded_by: newUpload.uploaded_by,
-            uploaded_at: newUpload.uploaded_at,
-            project_id: newUpload.project_id,
-          });
-          setTimeout(() => setShowBanner(null), 4000);
-        }
+        // Removed real-time banner/toast notification logic for new uploads. Notification will only appear in the sidebar/main notification UI.
         fetchNotifications(); // ensure real-time update
       })
       .subscribe();
@@ -226,15 +191,7 @@ const Notifications: React.FC<NotificationsProps> = ({ projectId, user }) => {
 
   return (
     <>
-      {/* Top notification banner as toast */}
-      {showBanner && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100%', background: '#3182ce', color: '#fff', zIndex: 2000,
-          padding: '12px 0', textAlign: 'center', fontWeight: 'bold', fontSize: 18, boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-        }}>
-          New file uploaded: {showBanner.file_name} in {showBanner.folder}
-        </div>
-      )}
+
       {/* Notification bell icon */}
       <button
         aria-label="Toggle notifications"

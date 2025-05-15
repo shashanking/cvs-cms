@@ -1,6 +1,7 @@
 import React from 'react';
 import type { AppProps } from 'next/app';
 import '../styles/globals.css';
+import '../styles/desktop.css';
 
 import { UserProvider, useUser } from '../components/UserContext';
 import Notifications from '../components/Notifications';

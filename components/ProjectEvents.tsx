@@ -174,13 +174,60 @@ const ProjectEvents: React.FC<ProjectEventsProps> = ({ projectId, user }) => {
           <h4>Upcoming Events</h4>
           {loading ? <div>Loading...</div> : (
             <ul style={{ listStyle: 'none', padding: 0 }}>
-              {events.map(ev => (
-                <li key={ev.id} style={{ marginBottom: 10, background: '#f7fafc', borderRadius: 6, padding: 10, cursor: 'pointer', border: selectedEvent?.id === ev.id ? '2px solid #3182ce' : '1px solid #e2e8f0' }} onClick={() => handleSelectEvent(ev)}>
-                  <strong>{ev.topic}</strong> <span style={{ color: '#888', fontSize: 13 }}>{ev.datetime ? new Date(ev.datetime).toLocaleString() : ''}</span><br />
-                  <span style={{ fontSize: 13 }}>{ev.description}</span><br />
-                  <span style={{ fontSize: 12, color: '#666' }}>Created by {ev.created_by} ({ev.repeat === 'repeat' ? 'Repeats' : 'Single'})</span>
-                </li>
-              ))}
+              {events.length === 0 ? (
+  <li style={{ color: '#888', fontStyle: 'italic', marginTop: 12 }}>No events yet. Create one above!</li>
+) : events.map(ev => (
+  <li
+    key={ev.id}
+    style={{
+      marginBottom: 12,
+      background: selectedEvent?.id === ev.id ? '#ebf8ff' : '#f7fafc',
+      borderRadius: 8,
+      padding: 14,
+      cursor: 'pointer',
+      border: selectedEvent?.id === ev.id ? '2px solid #2563eb' : '1px solid #e2e8f0',
+      boxShadow: selectedEvent?.id === ev.id ? '0 2px 8px #2563eb22' : 'none',
+      transition: 'all 0.15s',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12
+    }}
+    onClick={() => handleSelectEvent(ev)}
+  >
+    {/* Avatar (initials) */}
+    <div style={{
+      width: 38,
+      height: 38,
+      borderRadius: '50%',
+      background: '#2563eb22',
+      color: '#2563eb',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontWeight: 700,
+      fontSize: 18,
+      marginRight: 8
+    }}>
+      {ev.created_by.slice(0, 2).toUpperCase()}
+    </div>
+    <div style={{ flex: 1 }}>
+      <div style={{ fontWeight: 700, fontSize: 16 }}>{ev.topic} <span style={{ color: '#888', fontSize: 13, marginLeft: 8 }}>{ev.datetime ? new Date(ev.datetime).toLocaleString() : ''}</span></div>
+      <div style={{ fontSize: 13, margin: '2px 0 4px 0', color: '#333' }}>{ev.description}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 12, color: '#666' }}>By {ev.created_by}</span>
+        {/* Badge for repeat/single */}
+        <span style={{
+          background: ev.repeat === 'repeat' ? '#fbbf24' : '#22d3ee',
+          color: ev.repeat === 'repeat' ? '#92400e' : '#0e7490',
+          borderRadius: 6,
+          padding: '2px 8px',
+          fontSize: 11,
+          fontWeight: 600
+        }}>{ev.repeat === 'repeat' ? 'Repeats' : 'Single'}</span>
+      </div>
+    </div>
+  </li>
+))}
             </ul>
           )}
         </div>
@@ -197,12 +244,43 @@ const ProjectEvents: React.FC<ProjectEventsProps> = ({ projectId, user }) => {
               </div>
               <h5>Comments & Check-ins</h5>
               <ul style={{ listStyle: 'none', padding: 0 }}>
-                {comments.map(c => (
-                  <li key={c.id} style={{ marginBottom: 8, background: c.check_in ? '#e6fffa' : '#edf2f7', borderRadius: 6, padding: 8 }}>
-                    <span style={{ fontWeight: 600 }}>{c.username}</span>: {c.check_in ? <span style={{ color: '#319795' }}>Checked in</span> : c.comment}
-                    <span style={{ marginLeft: 12, color: '#888', fontSize: 12 }}>{new Date(c.created_at).toLocaleString()}</span>
-                  </li>
-                ))}
+                {comments.length === 0 ? (
+  <li style={{ color: '#888', fontStyle: 'italic', marginTop: 8 }}>No comments or check-ins yet.</li>
+) : comments.map(c => (
+  <li
+    key={c.id}
+    style={{
+      marginBottom: 10,
+      background: c.check_in ? '#e6fffa' : '#edf2f7',
+      borderRadius: 8,
+      padding: 10,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10
+    }}
+  >
+    {/* Avatar (initials) */}
+    <div style={{
+      width: 32,
+      height: 32,
+      borderRadius: '50%',
+      background: c.check_in ? '#31979522' : '#2563eb22',
+      color: c.check_in ? '#319795' : '#2563eb',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontWeight: 700,
+      fontSize: 15
+    }}>
+      {c.username.slice(0, 2).toUpperCase()}
+    </div>
+    <div>
+      <span style={{ fontWeight: 600 }}>{c.username}</span>{' '}
+      {c.check_in ? <span style={{ color: '#319795', fontWeight: 600, marginLeft: 4 }}>Checked in</span> : <span style={{ color: '#222', marginLeft: 4 }}>{c.comment}</span>}
+      <span style={{ marginLeft: 10, color: '#888', fontSize: 12 }}>{new Date(c.created_at).toLocaleString()}</span>
+    </div>
+  </li>
+))}
               </ul>
             </div>
           ) : <div style={{ color: '#888' }}>Select an event to see details, comment, or check in.</div>}

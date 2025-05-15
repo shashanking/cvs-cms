@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useRouter } from 'next/router';
 
 const USERS = [
   { username: 'pradip', role: 'FOUNDER' },
@@ -12,6 +13,7 @@ const USERS = [
 const CORPORATE_PASSWORD = 'cvs.admin.06.'; 
 
 export default function LoginForm({ onLogin }: { onLogin: (user: { username: string, role: string }) => void }) {
+  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +36,7 @@ export default function LoginForm({ onLogin }: { onLogin: (user: { username: str
     }
     setLoading(false);
     onLogin({ username: user.username, role: user.role });
+    router.push('/');
   };
 
 
