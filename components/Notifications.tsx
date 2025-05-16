@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
 
 import { useUser } from './UserContext';
@@ -15,6 +16,7 @@ interface NotificationItem {
 }
 
 const Notifications = () => {
+  const router = useRouter();
   const { user } = useUser();
   const { project } = useProject();
   const projectId = project?.id;
@@ -29,27 +31,38 @@ const Notifications = () => {
 
   // Real-time subscription for chat mention notifications
   useEffect(() => {
-    if (!user || !projectId) return;
+    if (!user) return;
     let subscription: any;
     const fetchMentions = async () => {
-      const { data } = await supabase
-        .from('chat_notifications')
-        .select('*')
-        .eq('project_id', projectId)
-        .eq('mentioned_user', user.username)
-        .eq('read', false)
-        .order('created_at', { ascending: false });
+      let query = supabase.from('chat_notifications').select('*').eq('mentioned_user', user.username).eq('read', false).order('created_at', { ascending: false });
+      if (projectId) {
+        query = query.eq('project_id', projectId);
+      }
+      const { data } = await query;
       setChatMentions(data || []);
     };
     fetchMentions();
-    subscription = supabase
-      .channel('public:chat_notifications')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_notifications', filter: `project_id=eq.${projectId}` }, payload => {
-        if (payload.new && payload.new.mentioned_user === user.username) {
-          setChatMentions(prev => [payload.new, ...prev]);
-        }
-      })
-      .subscribe();
+    if (projectId) {
+      // Subscribe to only this project's notifications
+      subscription = supabase
+        .channel('public:chat_notifications')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_notifications', filter: `project_id=eq.${projectId}` }, payload => {
+          if (payload.new && payload.new.mentioned_user === user.username) {
+            setChatMentions(prev => [payload.new, ...prev]);
+          }
+        })
+        .subscribe();
+    } else {
+      // Subscribe to all projects' notifications
+      subscription = supabase
+        .channel('public:chat_notifications')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_notifications' }, payload => {
+          if (payload.new && payload.new.mentioned_user === user.username) {
+            setChatMentions(prev => [payload.new, ...prev]);
+          }
+        })
+        .subscribe();
+    }
     return () => {
       supabase.removeChannel(subscription);
     };
@@ -87,49 +100,15 @@ const Notifications = () => {
 
   // Fetch all files uploaded by others that the user has not previewed
   const fetchNotifications = async () => {
-    // Prevent fetch if projectId is not valid
+    // Dashboard: all projects, Project page: only current project
+    let uploads, previews, downloads, eventNotifs;
     if (!projectId || projectId === 'null' || projectId === 'undefined') {
-      // eslint-disable-next-line no-console
-      console.warn('Skipping event notification fetch: invalid projectId', projectId);
-      setEventNotifications([]);
-      return;
-    }
-    // Fetch event notifications for this user
-    const { data: eventNotifs, error: eventNotifError } = await supabase
-      .from('event_notifications')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('username', user.username)
-      .order('created_at', { ascending: false });
-    if (eventNotifError) {
-      // eslint-disable-next-line no-console
-      console.error('Event notification fetch error:', eventNotifError);
-    } else {
-      // eslint-disable-next-line no-console
-      console.log('Fetched event notifications:', eventNotifs);
-    }
-    setEventNotifications(eventNotifs || []);
-
-    let uploads, previews, downloads;
-    if (projectId) {
-      // Project-specific notifications
-      uploads = (await supabase
-        .from('file_upload_audit')
-        .select('file_name, folder, uploaded_by, uploaded_at, project_id')
-        .eq('project_id', projectId)
-        .eq('action', 'upload')).data;
-      previews = (await supabase
-        .from('file_upload_audit')
-        .select('file_name, viewed_by_users, project_id')
-        .eq('project_id', projectId)
-        .eq('action', 'preview')).data;
-      downloads = (await supabase
-        .from('file_upload_audit')
-        .select('file_name, downloaded_by_users, project_id')
-        .eq('project_id', projectId)
-        .eq('action', 'download')).data;
-    } else {
-      // All-projects notifications
+      // All-projects notifications (dashboard)
+      eventNotifs = (await supabase
+        .from('event_notifications')
+        .select('*')
+        .eq('username', user.username)
+        .order('created_at', { ascending: false })).data;
       uploads = (await supabase
         .from('file_upload_audit')
         .select('file_name, folder, uploaded_by, uploaded_at, project_id')
@@ -151,7 +130,31 @@ const Notifications = () => {
         });
         setProjectNames(mapping);
       }
+    } else {
+      // Project-specific notifications
+      eventNotifs = (await supabase
+        .from('event_notifications')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('username', user.username)
+        .order('created_at', { ascending: false })).data;
+      uploads = (await supabase
+        .from('file_upload_audit')
+        .select('file_name, folder, uploaded_by, uploaded_at, project_id')
+        .eq('project_id', projectId)
+        .eq('action', 'upload')).data;
+      previews = (await supabase
+        .from('file_upload_audit')
+        .select('file_name, viewed_by_users, project_id')
+        .eq('project_id', projectId)
+        .eq('action', 'preview')).data;
+      downloads = (await supabase
+        .from('file_upload_audit')
+        .select('file_name, downloaded_by_users, project_id')
+        .eq('project_id', projectId)
+        .eq('action', 'download')).data;
     }
+    setEventNotifications(eventNotifs || []);
     // Map by file_name only (ignore folder)
     const newViewedMap: Record<string, string[]> = {};
     if (previews) {
@@ -182,7 +185,7 @@ const Notifications = () => {
     }
     setDownloadedMap(newDownloadedMap);
 
-    // Show all files uploaded by others
+    // Show all files uploaded by others (scoped here so uploads/previews/downloads/user are available)
     const allNotifs = (uploads || []).filter((u: any) => u.uploaded_by !== user.username);
     setNotifications(allNotifs.filter((u: any) => {
       // Gather all usernames from ALL preview logs for this file_name
@@ -328,9 +331,21 @@ const Notifications = () => {
               <div style={{ fontWeight: 700, color: '#e53e3e', fontSize: 15, marginBottom: 4 }}>Mentions in Chat</div>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {chatMentions.map(m => (
-                  <li key={m.id} style={{ marginBottom: 8, background: '#fef2f2', borderRadius: 6, padding: '8px 10px', border: '1.5px solid #e53e3e', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-                    onClick={() => markChatMentionRead(m.id)}
-                    title="Mark as read">
+                  <li
+                    key={m.id}
+                    style={{ marginBottom: 8, background: '#fef2f2', borderRadius: 6, padding: '8px 10px', border: '1.5px solid #e53e3e', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                    onClick={async () => {
+  setSidebarOpen(false);
+  await markChatMentionRead(m.id);
+  // Navigate to chat page and scroll to message if possible
+  if (m.project_id && m.message_id) {
+    router.push(`/project/${m.project_id}/chat?mid=${m.message_id}`);
+  } else if (m.project_id) {
+    router.push(`/project/${m.project_id}/chat`);
+  }
+}}
+                    title="Go to chat message"
+                  >
                     <div>
                       <span style={{ fontWeight: 600, fontSize: 13, color: '#b91c1c', wordBreak: 'break-word', lineHeight: 1.4 }}>@{m.mentioned_user}</span> <span style={{ color: '#222' }}>mentioned by</span> <span style={{ fontWeight: 600, color: '#2563eb' }}>{m.mentioned_by}</span>
                       <div style={{ marginTop: 2, color: '#444', fontSize: 14 }}>{m.message}</div>
@@ -342,174 +357,92 @@ const Notifications = () => {
               </ul>
             </div>
           )}
-          {(eventNotifications.length === 0 && notifications.length === 0) ? (
-            <div style={{ color: '#888' }}>No notifications</div>
-          ) : (
-            projectId ? (
-              <React.Fragment>
-                {/* Show event notifications first */}
-                {eventNotifications.length > 0 && (
-                  <div style={{ maxHeight: 400, overflowY: 'auto', paddingRight: 6 }}>
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                      {eventNotifications.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).map((ev: any) => {
-                        const isRead = !!ev.read;
-                        return (
-                          <li
-                            key={ev.id}
-                            style={{
-                              marginBottom: 8,
-                              background: isRead ? '#f7fafc' : '#fffbe6',
-                              borderRadius: 6,
-                              padding: '8px 10px',
-                              border: isRead ? '1px solid #e2e8f0' : '2px solid #fbbf24',
-                              display: 'flex',
-                              alignItems: 'flex-start',
-                              justifyContent: 'space-between',
-                              boxShadow: isRead ? 'none' : '0 2px 8px #fbbf2422',
-                              transition: 'all 0.15s',
-                              minHeight: 32,
-                              maxWidth: '100%',
-                              overflow: 'hidden',
-                            }}
-                          >
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word', lineHeight: 1.4 }}>
-                                Event: {ev.event_topic}
-                              </div>
-                              <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-                                by {ev.created_by} at {new Date(ev.created_at).toLocaleString()}
-                              </div>
-                            </div>
-                            <span style={{
-                              background: isRead ? '#38a169' : '#fbbf24',
-                              color: isRead ? '#fff' : '#92400e',
-                              borderRadius: 12,
-                              padding: '2px 12px',
-                              fontSize: 13,
-                              fontWeight: 600,
-                              marginLeft: 10,
-                              minWidth: 54,
-                              textAlign: 'center',
-                            }}>{isRead ? 'Read' : 'Unread'}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                )}
-                {/* Then show file notifications */}
-                <ul style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '3vw',
-                }}>
-                  {notifications.map(n => {
-                    const isViewed = viewedMap[n.file_name] && viewedMap[n.file_name].includes(user.username);
-                    const isDownloaded = downloadedMap[n.file_name] && downloadedMap[n.file_name].includes(user.username);
-                    const isRead = isViewed || isDownloaded;
-                    return (
-                      <li
-                        key={n.file_name + n.folder}
-                        style={{
-                          background: isRead ? '#f7fafc' : '#ebf8ff',
-                          borderRadius: 10,
-                          padding: '1vw 1vw',
-                          border: isRead ? '1px solid #e2e8f0' : '2px solid #3182ce',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          boxShadow: '0 1px 6px rgba(44,62,80,0.08)',
-                          fontSize: '1vw',
-                          minHeight: 48,
-                          transition: 'background 0.2s, border 0.2s',
-                        }}
-                      >
-                        <div>
-                          <strong>{n.file_name}</strong> in <em>{n.folder}</em><br />
-                          <span style={{ fontSize: 13, color: '#666' }}>by {n.uploaded_by} at {new Date(n.uploaded_at).toLocaleString()}</span>
+
+          {/* Event Notifications */}
+          {eventNotifications.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontWeight: 700, color: '#f59e42', fontSize: 15, marginBottom: 4 }}>Project Events</div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {eventNotifications.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).map(ev => {
+                  const isRead = !!ev.read;
+                  return (
+                    <li
+                      key={ev.id}
+                      style={{
+                        marginBottom: 8,
+                        background: isRead ? '#f7fafc' : '#fffbe6',
+                        borderRadius: 6,
+                        padding: '8px 10px',
+                        border: isRead ? '1px solid #e2e8f0' : '2px solid #fbbf24',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        boxShadow: isRead ? 'none' : '0 2px 8px #fbbf2422',
+                        transition: 'all 0.15s',
+                        minHeight: 32,
+                        maxWidth: '100%',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => {
+  setSidebarOpen(false);
+  if (ev.project_id && ev.event_id) {
+    router.push(`/project/${ev.project_id}?event=${ev.event_id}`);
+  } else if (ev.project_id) {
+    router.push(`/project/${ev.project_id}`);
+  }
+}}
+                      title="Go to event details"
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word', lineHeight: 1.4 }}>
+                          Event: {ev.event_topic}
                         </div>
-                        <span style={{
-                          background: isRead ? '#38a169' : '#3182ce',
-                          color: '#fff',
-                          borderRadius: 12,
-                          padding: '2px 10px',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          marginLeft: 10,
-                          minWidth: 54,
-                          textAlign: 'center',
-                        }}>{isRead ? 'Read' : 'Unread'}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </React.Fragment>
-            ) : (
-              // Global: group by project and folder
-              (() => {
-                const grouped: Record<string, Record<string, NotificationItem[]>> = {};
-                notifications.forEach(n => {
-                  if (!grouped[n.project_id]) grouped[n.project_id] = {};
-                  if (!grouped[n.project_id][n.folder]) grouped[n.project_id][n.folder] = [];
-                  grouped[n.project_id][n.folder].push(n);
-                });
-                return (
-                  <div>
-                    {Object.entries(grouped).map(([projectId, folders]) => (
-                      <div key={projectId} style={{ marginBottom: 16 }}>
-                        <div style={{ fontWeight: 700, color: '#3182ce', fontSize: 15, marginBottom: 4 }}>Project: {projectNames[projectId] || projectId}</div>
-                        {Object.entries(folders).map(([folder, items]) => (
-                          <div key={folder} style={{ marginBottom: 8 }}>
-                            <div style={{ fontWeight: 600, color: '#2d3748', fontSize: 14, marginBottom: 2 }}>Folder: {folder}</div>
-                            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                              {items.map(n => {
-                                const isViewed = viewedMap[n.file_name] && viewedMap[n.file_name].includes(user.username);
-                                const isDownloaded = downloadedMap[n.file_name] && downloadedMap[n.file_name].includes(user.username);
-                                const isRead = isViewed || isDownloaded;
-                                return (
-                                  <li
-                                    key={n.file_name + n.folder}
-                                    style={{
-                                      marginBottom: 8,
-                                      background: isRead ? '#f7fafc' : '#ebf8ff',
-                                      borderRadius: 6,
-                                      padding: '8px 10px',
-                                      border: isRead ? '1px solid #e2e8f0' : '1.5px solid #3182ce',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                    }}
-                                  >
-                                    <div>
-                                      <span style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word', lineHeight: 1.4 }}>{n.file_name}</span><br />
-                                      <span style={{ fontSize: 11, color: '#666', marginTop: 2 }}>by {n.uploaded_by} at {new Date(n.uploaded_at).toLocaleString()}</span>
-                                    </div>
-                                    <span style={{
-                                      background: isRead ? '#38a169' : '#3182ce',
-                                      color: '#fff',
-                                      borderRadius: 12,
-                                      padding: '2px 10px',
-                                      fontSize: 12,
-                                      fontWeight: 600,
-                                      marginLeft: 10,
-                                      minWidth: 54,
-                                      textAlign: 'center',
-                                    }}>{isRead ? 'Read' : 'Unread'}</span>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </div>
-                        ))}
+                        <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                          by {ev.created_by} at {new Date(ev.created_at).toLocaleString()}
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                );
-              })()
-            )
+                      <span style={{ background: isRead ? '#e2e8f0' : '#fbbf24', color: isRead ? '#888' : '#fff', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 600, marginLeft: 10, minWidth: 54, textAlign: 'center' }}>{isRead ? 'Read' : 'Unread'}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* File Upload Notifications */}
+          {notifications.length > 0 && (
+            <div>
+              <div style={{ fontWeight: 700, color: '#3182ce', fontSize: 15, marginBottom: 4 }}>File Uploads</div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {notifications.map(n => (
+                  <li
+                    key={n.file_name + n.uploaded_at}
+                    style={{ marginBottom: 8, background: '#f0f7ff', borderRadius: 6, padding: '8px 10px', border: '1.5px solid #3182ce', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+                    onClick={() => {
+  setSidebarOpen(false);
+  if (n.project_id && n.folder && n.file_name) {
+    router.push(`/project/${n.project_id}?folder=${encodeURIComponent(n.folder)}&file=${encodeURIComponent(n.file_name)}`);
+  } else if (n.project_id) {
+    router.push(`/project/${n.project_id}`);
+  }
+}}
+                    title="Go to file"
+                  >
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: 13, color: '#2563eb', wordBreak: 'break-word', lineHeight: 1.4 }}>{n.file_name}</span> <span style={{ color: '#222' }}>uploaded by</span> <span style={{ fontWeight: 600, color: '#3182ce' }}>{n.uploaded_by}</span>
+                      <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{new Date(n.uploaded_at).toLocaleString()}</div>
+                    </div>
+                    <span style={{ background: '#3182ce', color: '#fff', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 600, marginLeft: 10, minWidth: 54, textAlign: 'center' }}>Unread</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* No notifications fallback */}
+          {(chatMentions.length === 0 && eventNotifications.length === 0 && notifications.length === 0) && (
+            <div style={{ color: '#888' }}>No notifications</div>
           )}
         </div>
       </div>
@@ -517,7 +450,6 @@ const Notifications = () => {
   );
 };
 
-// Mark event notification as read
 // Mark an event notification as read in the DB
 async function markEventNotificationRead(eventId: number, username: string, projectId: string) {
   await supabase

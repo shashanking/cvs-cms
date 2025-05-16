@@ -136,10 +136,10 @@ const ProjectChat = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#f8fafc' }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 0', display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 700, margin: '0 auto', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#f8fafc', position: 'relative' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 0 120px 0', display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 700, margin: '0 auto', width: '100%' }}>
         {loading ? <div>Loading chat...</div> : messages.length === 0 ? <div style={{ color: '#888' }}>No messages yet.</div> : messages.map(m => (
-          <div key={m.id} style={{ alignSelf: m.username === user?.username ? 'flex-end' : 'flex-start', background: m.username === user?.username ? '#dbeafe' : '#fff', borderRadius: 8, padding: '8px 12px', maxWidth: '85%', boxShadow: '0 1px 4px #e3e3e3', fontSize: 15 }}>
+          <div key={m.id} style={{ alignSelf: m.username === user?.username ? 'flex-end' : 'flex-start', background: m.username === user?.username ? '#dbeafe' : '#fff', borderRadius: 8, padding: '8px 24px', maxWidth: '85%', boxShadow: '0 1px 4px #e3e3e3', fontSize: 15 }}>
             <span style={{ fontWeight: 600, color: '#2563eb', fontSize: 13 }}>{m.username}</span>
             <span style={{ marginLeft: 8, color: '#888', fontSize: 11 }}>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             <div style={{ marginTop: 2 }}>{m.message}</div>
@@ -147,7 +147,21 @@ const ProjectChat = () => {
         ))}
         <div ref={messagesEndRef} />
       </div>
-      <form onSubmit={handleSend} style={{ display: 'flex', alignItems: 'center', padding: '18px 0', borderTop: '1px solid #e5e7eb', background: '#f8fafc', maxWidth: 700, margin: '0 auto', width: '100%' }}>
+      <form onSubmit={handleSend} style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '18px 0',
+        borderTop: '1px solid #e5e7eb',
+        background: '#f8fafc',
+        maxWidth: 700,
+        width: '100%',
+        position: 'fixed',
+        left: '50%',
+        bottom: 0,
+        transform: 'translateX(-50%)',
+        zIndex: 100,
+        boxShadow: '0 -2px 12px #e5e7eb33'
+      }}>
         <div style={{ position: 'relative', flex: 1 }}>
           <input
             ref={inputRef}
