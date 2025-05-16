@@ -24,10 +24,12 @@ const SetPasswordForm: React.FC<SetPasswordFormProps> = ({ username, onPasswordS
       return;
     }
     setLoading(true);
+    // Normalize username to lowercase and trim for consistency
+    const normalizedUsername = username.trim().toLowerCase();
     const { error: updateError } = await supabase
       .from('users')
       .update({ password })
-      .eq('username', username);
+      .eq('username', normalizedUsername);
     setLoading(false);
     if (updateError) {
       setError('Failed to set password. Please try again.');

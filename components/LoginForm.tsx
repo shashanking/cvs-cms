@@ -22,32 +22,48 @@ export default function LoginForm({ onLogin }: { onLogin: (user: { username: str
     setError(null);
     setLoading(true);
     // Fetch user from the database
+    // Normalize username to lowercase for both query and input
+    const normalizedUsername = username.trim().toLowerCase();
     const { data, error: dbError } = await supabase
       .from('users')
       .select('*')
-      .eq('username', username)
-      .single();
-    if (dbError || !data) {
-      setError('You are not authorized to log in.');
+      .eq('username', normalizedUsername);
+    console.log('User query result:', data);
+    if (dbError) {
+      console.error('DB Error during login:', dbError);
+      setError('A server error occurred. Please try again.');
       setLoading(false);
       return;
     }
+    if (!data || data.length === 0) {
+      setError('User not found.');
+      setLoading(false);
+      return;
+    }
+    if (data.length > 1) {
+      setError('Multiple users found with this username. Please contact admin.');
+      setLoading(false);
+      return;
+    }
+    const userData = data[0];
     // If in forgot password mode, verify corporate pass
     if (forgotMode) {
       if (password !== CORPORATE_PASSWORD) {
         setError('Invalid corporate pass.');
         setLoading(false);
+        console.log('Forgot mode: wrong corporate pass');
         return;
       }
-      setPendingUser(data);
+      setPendingUser(userData);
       setResetStep('set');
       setLoading(false);
+      console.log('Forgot mode: corporate pass valid, proceed to set new password for', userData.username);
       return;
     }
     // If user has not set a personal password (password is empty or null), allow login with corporate pass only
-    if (!data.password) {
+    if (!userData.password) {
       if (password === CORPORATE_PASSWORD) {
-        setPendingUser(data);
+        setPendingUser(userData);
         setShowSetPassword(true);
         setLoading(false);
         return;
@@ -57,18 +73,22 @@ export default function LoginForm({ onLogin }: { onLogin: (user: { username: str
         return;
       }
     }
+    // DEBUG: Log password check (REMOVE in production)
+    console.log('Attempting login for user:', username, 'Entered password:', password, 'Stored password:', userData.password);
     // After initial login, only allow login with personal password
-    if (password !== data.password) {
+    if (password !== userData.password) {
       setError('Invalid password.');
       setLoading(false);
       return;
     }
+    // NOTE: For security, passwords should be hashed and checked using a secure hash comparison.
+    //       Storing plaintext passwords is insecure! Use bcrypt or similar libraries for hashing.
     setLoading(false);
     // Store user in localStorage for persistence
     const userObj = {
-      username: data.username,
-      display_name: data.display_name,
-      role: data.role
+      username: userData.username,
+      display_name: userData.display_name,
+      role: userData.role
     };
     localStorage.setItem('cvs-cms-user', JSON.stringify(userObj));
     onLogin(userObj);
