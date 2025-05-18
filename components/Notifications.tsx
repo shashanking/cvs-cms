@@ -458,7 +458,7 @@ const Notifications = () => {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           return !isRead && eventDate >= today;
-        }).length) > 0 && (
+        }).length + chatMentions.length) > 0 && (
             <span style={{
               position: 'absolute',
               top: 2,
@@ -483,7 +483,7 @@ const Notifications = () => {
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               return !isRead && eventDate >= today;
-            }).length}</span>
+            }).length + chatMentions.length}</span>
           )}
       </button>
       {/* Sidebar notification drawer */}

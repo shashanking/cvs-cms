@@ -1,86 +1,139 @@
 # CVS CMS
 
-A web application for managing proposals, plans, and projects in one place. Integrates Supabase for authentication, database, and storage, and Google Sheets for budget management.
+A comprehensive web application for managing proposals, plans, projects, and team collaboration. Features real-time notifications, event management, and document handling with robust audit logging.
 
-## Tech Stack
-- Next.js
-- Supabase (Auth, Tables, Storage)
-- Google Sheets API
+## 🚀 Tech Stack
+- **Frontend**: Next.js 14, React 18, TypeScript
+- **Backend**: Next.js API Routes
+- **Database & Auth**: Supabase (PostgreSQL, Auth, Storage, Realtime)
+- **UI Components**: Custom built with Tailwind-inspired styling
+- **Real-time Updates**: Supabase Realtime
+- **Calendar**: FullCalendar integration
 
-## Features
-- Admin dashboard (6 admins initially, add employees later)
-- Project creation with automatic folder structure:
-  - finance
-  - tech
-  - invoices
-  - proposals
-  - reports
-- Media storage in Supabase Storage
-- Budget integration with Google Sheets
+## ✨ Key Features
 
-## Getting Started
-1. Install dependencies:
+### Project & File Management
+- **Project Workspaces**: Dedicated spaces for each project with custom folder structures
+- **File Handling**: Upload, preview, and manage files with version history
+- **Audit Logging**: Comprehensive tracking of all file operations
+- **Role-based Access Control**: Granular permissions for team members
+
+### Event & Task Management
+- **Calendar View**: Visualize and manage project events and deadlines
+- **Event Notifications**: Get alerted about upcoming events and changes
+- **Task Assignment**: Assign and track tasks with due dates and priorities
+- **Real-time Updates**: See changes instantly across all connected clients
+
+### Collaboration Tools
+- **Team Chat**: Real-time messaging within projects
+- **Mentions & Notifications**: Get notified when mentioned in discussions
+- **Activity Feed**: Track all project activities in one place
+- **Comment Threads**: Discuss files and tasks with your team
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 16.14+ and npm 8.3+
+- Supabase account (https://supabase.com/)
+- Google Cloud Project (for Google Sheets integration, optional)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/cvs-cms.git
+   cd cvs-cms
+   ```
+
+2. Install dependencies:
    ```bash
    npm install
    ```
-2. Set up your Supabase project and get the API keys.
-3. Configure environment variables in `.env.local`:
+
+3. Set up environment variables:
    ```env
+   # Supabase
    NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+   
+   # Google Sheets (optional)
    GOOGLE_SHEETS_ID=your-google-sheet-id
    GOOGLE_SERVICE_ACCOUNT_CREDS=your-google-service-account-json
+   
+   # App Configuration
+   NEXTAUTH_URL=http://localhost:3000
+   NEXTAUTH_SECRET=your-nextauth-secret
    ```
+
 4. Run the development server:
    ```bash
    npm run dev
    ```
+   Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Folder Structure
-- `/pages` - Next.js pages
-- `/components` - React components
+## 🏗️ Project Structure
+
+```
+cvs-cms/
+├── components/         # Reusable React components
+│   ├── Notifications/  # Notification system components
+│   ├── Project/        # Project-specific components
+│   └── UI/             # Generic UI components
+├── lib/                # Utility libraries and helpers
+│   ├── supabase.ts     # Supabase client configuration
+│   └── utils.ts        # Common utility functions
+├── pages/              # Next.js pages and API routes
+│   ├── api/            # API endpoints
+│   └── project/        # Project-related pages
+├── public/             # Static assets
+└── styles/             # Global styles and themes
+```
+
+## 🔔 Notification System
+
+### Features
+- **Real-time Updates**: Instant notification delivery using Supabase Realtime
+- **Unread Indicators**: Clear visual indicators for unread notifications
+- **Smart Filtering**: Only shows relevant, unread notifications
+- **Event-based Alerts**: Get notified about upcoming events and deadlines
+- **Actionable Items**: Click notifications to jump directly to the relevant content
+
+### Notification Types
+1. **File Uploads**: Get notified when new files are uploaded to your projects
+2. **Event Reminders**: Stay on top of upcoming events and deadlines
+3. **Mentions**: Get notified when someone mentions you in comments or chats
+4. **Task Updates**: Stay informed about task assignments and status changes
+
+## 📅 Event Management
+
+- **Calendar Integration**: View all events in a monthly, weekly, or daily view
+- **Event Notifications**: Get reminders for upcoming events
+- **RSVP & Attendance**: Track event participation
+- **Recurring Events**: Support for repeating events with custom schedules
+
+## 🛠️ Development
+
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm start` - Start production server
+- `npm run lint` - Run ESLint
+
+### Environment Variables
+
+See `.env.example` for all required environment variables.
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with Next.js and Supabase
+- Icons from [React Icons](https://react-icons.github.io/react-icons/)
+- Calendar powered by FullCalendar
 
 ---
 
-## Current Progress (as of 2025-05-15)
-
-### UI/UX Consistency Improvements
-- **Unified Table Design**: Standardized the look and feel of activity logs, audit logs, and event tables across the application
-- **Enhanced Readability**: Improved spacing, typography, and visual hierarchy in all data tables
-- **Interactive Elements**: Added hover effects and visual feedback for better user interaction
-- **Responsive Design**: Ensured tables are responsive and maintain usability across different screen sizes
-- **Action Badges**: Standardized the styling of action badges with appropriate icons and colors
-- **Empty States**: Improved empty state messages with clear guidance for users
-
-### File Upload & Audit Logging
-
-### File Upload & Audit Logging
-- **File uploads** now use a unique file name format: `timestamp_originalname.ext`.
-- This unique name is used for all actions (upload, preview, download) and is displayed in the files list.
-- **Audit logging** is standardized: every upload, preview, and download action logs the same unique file name for consistency across the system.
-
-### Notifications System
-- **Notification badge** now shows only the count of unread notifications (files you have not yet previewed or downloaded).
-- Badge count and notification list update in real-time as you interact with files.
-- Notifications and audit logs are always in sync, using the unique file name as the reference.
-
-### UI/UX
-- The files list, audit logs, and notifications all reference the unique file name for every file.
-- Immediate feedback after upload: new files appear instantly with their unique names.
-- Consistent table styling across all data displays for a cohesive user experience.
-- Improved visual hierarchy with subtle background colors and dividers for better data scanning.
-
-### Next Steps
-- Further user feedback and testing.
-- Optionally, add user-friendly display of original file names alongside unique names.
-- Consider migration/deduplication for legacy audit log data if needed.
-
----
-- `/lib` - Utility libraries (Supabase, Google Sheets)
-
-## TODO
-- [ ] Supabase schema setup
-- [ ] Auth & admin setup
-- [ ] Project creation & folder logic
-- [ ] Google Sheets integration
-- [ ] UI/UX improvements
+*Last Updated: May 18, 2025*
