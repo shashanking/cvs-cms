@@ -44,6 +44,16 @@ A web application for managing proposals, plans, and projects in one place. Inte
 
 ## Current Progress (as of 2025-05-15)
 
+### UI/UX Consistency Improvements
+- **Unified Table Design**: Standardized the look and feel of activity logs, audit logs, and event tables across the application
+- **Enhanced Readability**: Improved spacing, typography, and visual hierarchy in all data tables
+- **Interactive Elements**: Added hover effects and visual feedback for better user interaction
+- **Responsive Design**: Ensured tables are responsive and maintain usability across different screen sizes
+- **Action Badges**: Standardized the styling of action badges with appropriate icons and colors
+- **Empty States**: Improved empty state messages with clear guidance for users
+
+### File Upload & Audit Logging
+
 ### File Upload & Audit Logging
 - **File uploads** now use a unique file name format: `timestamp_originalname.ext`.
 - This unique name is used for all actions (upload, preview, download) and is displayed in the files list.
@@ -57,6 +67,8 @@ A web application for managing proposals, plans, and projects in one place. Inte
 ### UI/UX
 - The files list, audit logs, and notifications all reference the unique file name for every file.
 - Immediate feedback after upload: new files appear instantly with their unique names.
+- Consistent table styling across all data displays for a cohesive user experience.
+- Improved visual hierarchy with subtle background colors and dividers for better data scanning.
 
 ### Next Steps
 - Further user feedback and testing.

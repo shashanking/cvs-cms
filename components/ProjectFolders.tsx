@@ -4,7 +4,7 @@ import AuditLogs from './AuditLogs';
 import SheetPreview from './SheetPreview';
 import DocPreview from './DocPreview';
 import Notifications from './Notifications';
-import { ProjectEventsComponent } from './ProjectEvents';
+
 import { useUser } from './UserContext';
 import { useProject } from './ProjectContext';
 
@@ -198,7 +198,6 @@ export default function ProjectFolders({ folders, onFileAction }: ProjectFolders
 
   return (
     <div style={{ margin: '4vw 0' }}>
-      <ProjectEventsComponent />
       <Notifications />
       <div>
         {(!selectedFolder) ? (
@@ -479,29 +478,75 @@ export default function ProjectFolders({ folders, onFileAction }: ProjectFolders
                         title="Download"
                         onClick={async () => {
                           const log = downloadLogs[file.name] || { usernames: [], uploaded_by: '' };
-                          if (user.username !== log.uploaded_by && !log.usernames.includes(user.username)) {
-                            await fetch('/api/auditFileDownload', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                project_id: projectId,
-                                folder: selectedFolder,
-                                file_name: file.name,
-                                downloaded_by: user.username,
-                                downloaded_at: new Date().toISOString(),
-                                uploaded_by: log.uploaded_by,
-                              }),
-                            });
-                            setDownloadLogs(prev => ({
-                              ...prev,
-                              [file.name]: {
-                                usernames: [...(prev[file.name]?.usernames || []), user.username],
-                                uploaded_by: log.uploaded_by,
-                              }
-                            }));
+                          const isFirstDownload = user.username !== log.uploaded_by && !log.usernames.includes(user.username);
+                          
+                          try {
+                            // Mark as seen in preview logs if not already done
+                            const viewedBy = previewLogs[file.name]?.entries || [];
+                            const isFirstView = !viewedBy.find(e => e.username === user.username);
+                            
+                            if (isFirstView) {
+                              // Log the preview action (mark as seen)
+                              await fetch('/api/auditFilePreview', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  project_id: projectId,
+                                  folder: selectedFolder,
+                                  file_name: file.name,
+                                  previewed_by: user.username,
+                                  previewed_at: new Date().toISOString(),
+                                }),
+                              });
+                              
+                              // Update preview logs locally
+                              setPreviewLogs(prev => ({
+                                ...prev,
+                                [file.name]: {
+                                  entries: [
+                                    ...(prev[file.name]?.entries || []),
+                                    { username: user.username, time: new Date().toISOString() }
+                                  ]
+                                }
+                              }));
+                            }
+                            
+                            if (isFirstDownload) {
+                              // Log the download action
+                              await fetch('/api/auditFileDownload', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  project_id: projectId,
+                                  folder: selectedFolder,
+                                  file_name: file.name,
+                                  downloaded_by: user.username,
+                                  downloaded_at: new Date().toISOString(),
+                                  uploaded_by: log.uploaded_by,
+                                }),
+                              });
+                              
+                              // Update download logs locally
+                              setDownloadLogs(prev => ({
+                                ...prev,
+                                [file.name]: {
+                                  usernames: [...(prev[file.name]?.usernames || []), user.username],
+                                  uploaded_by: log.uploaded_by,
+                                }
+                              }));
+                            }
+                            
+                            // Refresh notifications and logs
+                            window.dispatchEvent(new Event('refreshNotifications'));
                             loadAuditLogs();
+                            if (onFileAction) onFileAction();
+                          } catch (error) {
+                            console.error('Error logging download:', error);
                           }
-                          const { data } = supabase.storage.from('media').getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);
+                          
+                          // Always proceed with download
+                          const { data } = supabase.storage.from('media')
+                            .getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);
                           window.open(data.publicUrl, '_blank');
                         }}
                       >⬇️</button>
@@ -522,7 +567,16 @@ export default function ProjectFolders({ folders, onFileAction }: ProjectFolders
                                 previewed_at: new Date().toISOString(),
                               }),
                             });
-                            setPreviewLogs(prev => ({ ...prev, [file.name]: { entries: [...(prev[file.name]?.entries || []), { username: user.username, time: new Date().toISOString() }] } }));
+                            setPreviewLogs(prev => ({
+                              ...prev,
+                              [file.name]: {
+                                entries: [
+                                  ...(prev[file.name]?.entries || []),
+                                  { username: user.username, time: new Date().toISOString() }
+                                ]
+                              }
+                            }));
+                            window.dispatchEvent(new Event('refreshNotifications'));
                             if (onFileAction) onFileAction();
                           }
                           const { data } = supabase.storage.from('media').getPublicUrl(`projects/${projectId}/${selectedFolder}/${file.name}`);

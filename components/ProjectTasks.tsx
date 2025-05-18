@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useUser } from './UserContext';
 import { useProject } from './ProjectContext';
+import { v4 as uuidv4 } from 'uuid';
 
 interface ProjectTasksProps {
   members?: string[]; // optional, for static member list
@@ -18,6 +19,7 @@ interface TaskItem {
   updated_by?: string;
   updated_at?: string;
   deadline: string | null;
+  is_deleted: boolean;
 }
 
 const DEFAULT_MEMBERS = [
@@ -40,6 +42,20 @@ function ProjectTasksComponent({ members }: ProjectTasksProps) {
 
   const memberList = members || DEFAULT_MEMBERS;
 
+  const logAuditAction = async (action: string, taskId: string, details: any) => {
+    try {
+      await supabase.from('audit_logs').insert([{
+        task_id: taskId,
+        action,
+        performed_by: user.username,
+        details: { ...details, timestamp: new Date().toISOString() },
+        created_at: new Date().toISOString()
+      }]);
+    } catch (error) {
+      console.error('Error logging audit action:', error);
+    }
+  };
+
   useEffect(() => {
     if (!projectId) return;
     fetchTasks();
@@ -53,6 +69,7 @@ function ProjectTasksComponent({ members }: ProjectTasksProps) {
       .from('project_tasks')
       .select('*')
       .eq('project_id', projectId)
+      .eq('is_deleted', false)
       .order('created_at', { ascending: false });
     if (error) setError(error.message);
     setTasks(data || []);
@@ -71,25 +88,47 @@ function ProjectTasksComponent({ members }: ProjectTasksProps) {
     }
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase.from('project_tasks').insert([
-      {
-        project_id: projectId,
-        title,
-        description,
-        assignee,
-        status,
-        deadline,
-        created_by: user.username
-      }
-    ]);
-    if (error) setError(error.message);
-    setTitle('');
-    setDescription('');
-    setAssignee('');
-    setDeadline('');
-    setStatus('open');
-    fetchTasks();
-    setLoading(false);
+    
+    try {
+      const { data, error } = await supabase.from('project_tasks').insert([
+        {
+          project_id: projectId,
+          title,
+          description,
+          assignee,
+          status,
+          deadline,
+          created_by: user.username
+        }
+      ]).select().single();
+
+      if (error) throw error;
+      
+      // Log the creation in audit log and update UI optimistically
+      // Update UI with the new task first for better UX
+      setTasks(prev => [data, ...prev]);
+      
+      // Log the creation in audit log after UI update
+      await logAuditAction('task_created', data.id, {
+        title: data.title,
+        description: data.description,
+        assignee: data.assignee,
+        status: data.status,
+        deadline: data.deadline
+      });
+      
+      // Reset form
+      setTitle('');
+      setDescription('');
+      setAssignee('');
+      setDeadline('');
+      setStatus('open');
+    } catch (error) {
+      setError(error.message);
+      console.error('Error creating task:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!projectId) return <div>Loading project tasks...</div>;
@@ -161,6 +200,10 @@ function ProjectTasksComponent({ members }: ProjectTasksProps) {
                 task={task}
                 user={user}
                 members={memberList}
+                onDelete={() => {
+                  setTasks(prev => prev.filter(t => t.id !== task.id));
+                }}
+                logAuditAction={logAuditAction}
               />
             ))}
           </ul>
@@ -175,9 +218,13 @@ type TaskDetailProps = {
   task: TaskItem;
   user: { username: string; display_name: string; role: string };
   members: string[];
+  onDelete: () => void;
+  logAuditAction: (action: string, taskId: string, details: any) => Promise<void>;
 };
 
-const TaskDetail: React.FC<TaskDetailProps> = ({ task, user, members }) => {
+
+const TaskDetail: React.FC<TaskDetailProps> = ({ task, user, members, onDelete, logAuditAction }) => {
+  const { project } = useProject();
   const [expanded, setExpanded] = useState(false);
   const [comments, setComments] = useState<any[]>([]);
   const [timeLogs, setTimeLogs] = useState<any[]>([]);
@@ -199,7 +246,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, user, members }) => {
     setError(null);
     const [cmt, tlog] = await Promise.all([
       supabase.from('task_comments').select('*').eq('task_id', task.id).order('created_at', { ascending: true }),
-      supabase.from('task_time_logs').select('*').eq('task_id', task.id).order('created_at', { ascending: true })
+      supabase.from('task_logs').select('*').eq('task_id', task.id).order('created_at', { ascending: true })
     ]);
     if (cmt.error) setError(cmt.error.message);
     setComments(cmt.data || []);
@@ -211,27 +258,120 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, user, members }) => {
     if (!commentText) return;
     setLoading(true);
     setError(null);
-    const { error } = await supabase.from('task_comments').insert([
-      { task_id: task.id, username: user.username, comment: commentText }
-    ]);
-    if (error) setError(error.message);
-    setCommentText('');
-    fetchDetails();
-    setLoading(false);
+    
+    try {
+      const { data, error } = await supabase
+        .from('task_comments')
+        .insert([
+          { 
+            task_id: task.id, 
+            username: user.username, 
+            comment: commentText,
+            created_at: new Date().toISOString()
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log comment in audit log
+      await logAuditAction('task_comment_added', task.id, {
+        comment_id: data.id,
+        comment: data.comment
+      });
+
+      // Update UI optimistically
+      setComments(prev => [...prev, data]);
+      setCommentText('');
+    } catch (error) {
+      setError(error.message);
+      console.error('Error adding comment:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddTimeLog = async () => {
     if (!timeSpent) return;
     setLoading(true);
     setError(null);
-    const { error } = await supabase.from('task_time_logs').insert([
-      { task_id: task.id, username: user.username, time_spent_minutes: Number(timeSpent), description: timeDesc }
-    ]);
-    if (error) setError(error.message);
-    setTimeSpent('');
-    setTimeDesc('');
-    fetchDetails();
-    setLoading(false);
+    
+    const project_id = project?.id;
+    try {
+      const { data, error } = await supabase
+        .from('task_logs')
+        .insert([
+          { 
+            task_id: task.id, 
+            project_id,
+            performed_by: user.username, 
+            action: 'time_log',
+            details: {
+              minutes: Number(timeSpent),
+              description: timeDesc
+            },
+            created_at: new Date().toISOString()
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log time entry in audit log
+      await logAuditAction('task_time_logged', task.id, {
+        time_log_id: data.id,
+        minutes: data.details?.minutes,
+        description: data.details?.description
+      });
+
+      // Update UI optimistically
+      setTimeLogs(prev => [...prev, data]);
+      setTimeSpent('');
+      setTimeDesc('');
+    } catch (error) {
+      setError(error.message);
+      console.error('Error logging time:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!window.confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Log the deletion in audit log
+      await logAuditAction('task_deleted', task.id, {
+        title: task.title,
+        description: task.description,
+        assignee: task.assignee,
+        status: task.status,
+        deadline: task.deadline
+      });
+
+      // Soft delete: set is_deleted to true
+      const { error: deleteError } = await supabase
+        .from('project_tasks')
+        .update({ is_deleted: true })
+        .eq('id', task.id);
+
+      if (deleteError) throw deleteError;
+
+      // Call parent's onDelete to update the UI
+      onDelete();
+    } catch (error) {
+      setError(error.message || 'Failed to delete task');
+      console.error('Error deleting task:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -248,7 +388,47 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, user, members }) => {
           )}
           <span style={{ fontSize: 12, color: '#666' }}>Assignee: {task.assignee} | Created by {task.created_by} at {new Date(task.created_at).toLocaleString()}</span>
         </div>
-        <button onClick={() => setExpanded(e => !e)} style={{ marginLeft: 16 }}>{expanded ? 'Hide' : 'Details'}</button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button 
+            onClick={() => setExpanded(e => !e)} 
+            style={{ 
+              background: '#3182ce', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: 4, 
+              padding: '4px 12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            {expanded ? 'Hide' : 'Details'}
+            {expanded ? '▲' : '▼'}
+          </button>
+          <button 
+            onClick={handleDeleteTask} 
+            disabled={loading}
+            style={{ 
+              background: '#ef4444', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: 4, 
+              padding: '4px 12px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            {loading ? 'Deleting...' : (
+              <>
+                <span>🗑️</span> Delete
+              </>
+            )}
+          </button>
+        </div>
       </div>
       {expanded && (
         <div style={{ marginTop: 16, background: '#fff', borderRadius: 6, padding: 12, border: '1px solid #e2e8f0' }}>
@@ -262,21 +442,59 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, user, members }) => {
               </li>
             ))}
           </ul>
-          <input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Add a comment..." style={{ minWidth: 180 }} />
-          <button onClick={handleAddComment} disabled={loading || !commentText}>Comment</button>
-          <h5 style={{ marginTop: 18 }}>Time Logs</h5>
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {timeLogs.map(t => (
-              <li key={t.id} style={{ marginBottom: 6, background: '#e6fffa', borderRadius: 4, padding: 6 }}>
-                <span style={{ fontWeight: 600 }}>{t.username}</span>: {t.time_spent_minutes} min
-                {t.description && <span style={{ color: '#666', marginLeft: 8 }}>({t.description})</span>}
-                <span style={{ marginLeft: 10, color: '#888', fontSize: 12 }}>{new Date(t.created_at).toLocaleString()}</span>
-              </li>
-            ))}
-          </ul>
-          <input type="number" min="1" value={timeSpent} onChange={e => setTimeSpent(e.target.value)} placeholder="Minutes" style={{ width: 80 }} />
-          <input value={timeDesc} onChange={e => setTimeDesc(e.target.value)} placeholder="Description (optional)" style={{ minWidth: 120 }} />
-          <button onClick={handleAddTimeLog} disabled={loading || !timeSpent}>Log Time</button>
+          <form onSubmit={(e) => { e.preventDefault(); handleAddComment(); }} style={{ marginBottom: 16 }}>
+            <input 
+              value={commentText} 
+              onChange={e => setCommentText(e.target.value)} 
+              placeholder="Add a comment..." 
+              style={{ minWidth: 180, marginRight: 8 }} 
+            />
+            <button type="submit" disabled={loading || !commentText}>Comment</button>
+          </form>
+          <h5 style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
+            Time Logs
+            <button 
+              type="button"
+              onClick={fetchDetails} 
+              style={{ marginLeft: 8, fontSize: 13, background: '#facc15', color: '#333', border: 'none', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}
+            >
+              Refresh
+            </button>
+          </h5>
+          {timeLogs.length === 0 ? (
+            <div style={{ color: '#888', fontSize: 13, marginBottom: 6 }}>No time logs for this task yet.</div>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0 }}>
+              {timeLogs.map(t => (
+                <li key={t.id} style={{ marginBottom: 6, background: '#e6fffa', borderRadius: 4, padding: 6, display: 'flex', flexDirection: 'column' }}>
+                  <span>
+                    <span style={{ fontWeight: 600 }}>{t.performed_by}</span>: <span style={{ color: '#ca8a04' }}>{t.details?.minutes} min</span>
+                    {t.details?.description && <span style={{ color: '#666', marginLeft: 8 }}>({t.details?.description})</span>}
+                  </span>
+                  <span style={{ marginLeft: 2, color: '#888', fontSize: 12 }}>{new Date(t.created_at).toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); handleAddTimeLog(); }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <input 
+                type="number" 
+                min="1" 
+                value={timeSpent} 
+                onChange={e => setTimeSpent(e.target.value)} 
+                placeholder="Minutes" 
+                style={{ width: 80 }} 
+              />
+              <input 
+                value={timeDesc} 
+                onChange={e => setTimeDesc(e.target.value)} 
+                placeholder="Description (optional)" 
+                style={{ minWidth: 120 }} 
+              />
+              <button type="submit" disabled={loading || !timeSpent}>Log Time</button>
+            </div>
+          </form>
         </div>
       )}
     </li>

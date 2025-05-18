@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (delError) return res.status(500).json({ error: delError.message });
   // Track deletion in audit table
   const { error: auditError } = await supabase.from('file_upload_audit').insert([
-    { project_id, folder, file_name: file_path.split('/').pop(), deleted_by, deleted_at, action: 'file_deleted' }
+    { project_id, folder, file_name: file_path.split('/').pop(), deleted_by, deleted_at, action: 'delete' }
   ]);
   if (auditError) return res.status(500).json({ error: auditError.message });
   return res.status(200).json({ success: true });

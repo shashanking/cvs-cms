@@ -1,9 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
-
 import { useUser } from './UserContext';
 import { useProject } from './ProjectContext';
+
+type FileUploadAudit = {
+  id: string;
+  file_name: string;
+  folder: string;
+  uploaded_by: string;
+  uploaded_at: string;
+  project_id: string;
+  action: 'upload' | 'preview' | 'download' | 'delete';
+  viewed_by_users?: Array<{ username: string }>;
+  downloaded_by_users?: Array<{ username: string }>;
+};
+
+type FileUploadAuditChange = {
+  new: FileUploadAudit;
+  old: FileUploadAudit;
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+};
+
+type FileUploadAuditPayload = RealtimePostgresChangesPayload<FileUploadAuditChange>;
 
 // Notifications now uses context for user and project
 
@@ -104,15 +124,45 @@ const Notifications = () => {
     let uploads, previews, downloads, eventNotifs;
     if (!projectId || projectId === 'null' || projectId === 'undefined') {
       // All-projects notifications (dashboard)
-      eventNotifs = (await supabase
+      // Get event notifications, excluding those from soft-deleted events
+      const { data: eventNotifsData } = await supabase
         .from('event_notifications')
-        .select('*')
+        .select(`
+          *,
+          event:event_id (
+            id,
+            is_deleted
+          )
+        `)
         .eq('username', user.username)
-        .order('created_at', { ascending: false })).data;
-      uploads = (await supabase
+        .order('created_at', { ascending: false });
+
+      // Filter out notifications for soft-deleted events
+      eventNotifs = (eventNotifsData || []).filter(
+        (notification: any) => !notification.event || notification.event.is_deleted === false
+      );
+      // Get all uploads that haven't been soft-deleted
+      const { data: allUploads } = await supabase
         .from('file_upload_audit')
-        .select('file_name, folder, uploaded_by, uploaded_at, project_id')
-        .eq('action', 'upload')).data;
+        .select('file_name, folder, uploaded_by, uploaded_at, project_id, id, action')
+        .eq('action', 'upload');
+
+      // Get all deleted file names
+      const { data: deletedFiles } = await supabase
+        .from('file_upload_audit')
+        .select('file_name')
+        .eq('action', 'delete');
+
+      // Create a Set of deleted file names for O(1) lookups
+      const deletedFileNames = new Set(deletedFiles?.map(f => f.file_name) || []);
+
+      // Filter out any upload where the file name appears in the deleted files
+      const uploadsData = allUploads?.filter(upload => {
+        const fileName = upload.file_name.split('/').pop(); // Extract just the file name
+        return !deletedFileNames.has(fileName);
+      }) || [];
+
+      uploads = uploadsData || [];
       previews = (await supabase
         .from('file_upload_audit')
         .select('file_name, viewed_by_users, project_id')
@@ -131,18 +181,48 @@ const Notifications = () => {
         setProjectNames(mapping);
       }
     } else {
-      // Project-specific notifications
-      eventNotifs = (await supabase
+      // Project-specific notifications, excluding soft-deleted events
+      const { data: eventNotifsData } = await supabase
         .from('event_notifications')
-        .select('*')
+        .select(`
+          *,
+          event:event_id (
+            id,
+            is_deleted
+          )
+        `)
         .eq('project_id', projectId)
         .eq('username', user.username)
-        .order('created_at', { ascending: false })).data;
-      uploads = (await supabase
+        .order('created_at', { ascending: false });
+
+      // Filter out notifications for soft-deleted events
+      eventNotifs = (eventNotifsData || []).filter(
+        (notification: any) => !notification.event || notification.event.is_deleted === false
+      );
+      // Get all uploads for the current project that haven't been soft-deleted
+      const { data: allProjectUploads } = await supabase
         .from('file_upload_audit')
-        .select('file_name, folder, uploaded_by, uploaded_at, project_id')
+        .select('file_name, folder, uploaded_by, uploaded_at, project_id, id, action')
         .eq('project_id', projectId)
-        .eq('action', 'upload')).data;
+        .eq('action', 'upload');
+
+      // Get all deleted file names for this project
+      const { data: deletedProjectFiles } = await supabase
+        .from('file_upload_audit')
+        .select('file_name')
+        .eq('project_id', projectId)
+        .eq('action', 'delete');
+
+      // Create a Set of deleted file names for O(1) lookups
+      const deletedProjectFileNames = new Set(deletedProjectFiles?.map(f => f.file_name) || []);
+
+      // Filter out any upload where the file name appears in the deleted files
+      const uploadsData = allProjectUploads?.filter(upload => {
+        const fileName = upload.file_name.split('/').pop(); // Extract just the file name
+        return !deletedProjectFileNames.has(fileName);
+      }) || [];
+
+      uploads = uploadsData || [];
       previews = (await supabase
         .from('file_upload_audit')
         .select('file_name, viewed_by_users, project_id')
@@ -202,57 +282,149 @@ const Notifications = () => {
     // Removed banner/toast notification logic for unread notifications. All notifications are now only shown in the sidebar/main notification UI.
   };
 
-  useEffect(() => {
-    fetchNotifications();
-    // Listen for custom event to trigger notification refresh
-    const handler = () => fetchNotifications();
-    window.addEventListener('refresh-notifications', handler);
-    return () => {
-      window.removeEventListener('refresh-notifications', handler);
-    };
+  // Memoize fetchNotifications to prevent unnecessary re-renders
+  const memoizedFetchNotifications = React.useCallback(fetchNotifications, [projectId, user.username]);
 
-    // Subscribe to real-time upload updates (to show notification)
-    const channel = supabase.channel('file_upload_audit_notify')
-      .on('postgres_changes', {
+  useEffect(() => {
+    // Initial fetch
+    memoizedFetchNotifications();
+
+    // Listen for custom event to trigger notification refresh
+    const handler = () => memoizedFetchNotifications();
+    window.addEventListener('refresh-notifications', handler);
+
+    // Set up real-time subscriptions
+    const channels = [];
+    let channel;
+
+    // Subscribe to file upload/delete events
+    channel = supabase
+      .channel('file_upload_audit_notify')
+      .on<FileUploadAuditPayload>('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'file_upload_audit',
+        filter: projectId ? `project_id=eq.${projectId}` : undefined
+      }, (payload) => {
+        // Refresh notifications on upload or delete actions
+        const change = payload as unknown as FileUploadAuditChange;
+        if (change.new && (change.new.action === 'upload' || change.new.action === 'delete')) {
+          memoizedFetchNotifications();
+        }
+      });
+    channels.push(channel);
+
+    // Subscribe to file preview events
+    channel = supabase
+      .channel('file_upload_audit_preview_notify')
+      .on<FileUploadAuditPayload>('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'file_upload_audit',
+        filter: `action=eq.preview${projectId ? `&project_id=eq.${projectId}` : ''}`
+      }, () => {
+        memoizedFetchNotifications();
+      });
+    channels.push(channel);
+
+    // Subscribe to file download events
+    channel = supabase
+      .channel('file_upload_audit_download_notify')
+      .on<FileUploadAuditPayload>('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'file_upload_audit',
+        filter: `action=eq.download${projectId ? `&project_id=eq.${projectId}` : ''}`
+      }, () => {
+        memoizedFetchNotifications();
+      });
+    channels.push(channel);
+
+    // Subscribe to file deletion events specifically
+    channel = supabase
+      .channel('file_upload_audit_delete_notify')
+      .on<FileUploadAuditPayload>('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'file_upload_audit',
-        filter: `action=eq.upload`
-      }, (payload) => {
-        const newUpload = payload.new;
-        // Removed real-time banner/toast notification logic for new uploads. Notification will only appear in the sidebar/main notification UI.
-        fetchNotifications(); // ensure real-time update
-      })
-      .subscribe();
-    // Subscribe to real-time preview updates (to remove notification)
-    const channel2 = supabase.channel('file_upload_audit_preview_notify')
+        filter: `action=eq.delete${projectId ? `&project_id=eq.${projectId}` : ''}`
+      }, () => {
+        // Force immediate refresh when a file is deleted
+        memoizedFetchNotifications();
+      });
+    channels.push(channel);
+
+    // Subscribe to event notifications
+    channel = supabase
+      .channel('event_notifications_notify')
       .on('postgres_changes', {
-        event: '*', // listen to all preview changes
+        event: '*',
         schema: 'public',
-        table: 'file_upload_audit',
-        filter: `action=eq.preview`
-      }, (payload) => {
-        fetchNotifications();
-      })
-      .subscribe();
-    // Subscribe to real-time download updates (to remove notification)
-    const channel3 = supabase.channel('file_upload_audit_download_notify')
+        table: 'event_notifications',
+        filter: projectId ? `project_id=eq.${projectId}` : undefined
+      }, (payload: { new: { username?: string } }) => {
+        if (payload.new?.username && payload.new.username === user.username) {
+          memoizedFetchNotifications();
+        }
+      });
+    channels.push(channel);
+
+    // Subscribe to chat notifications
+    channel = supabase
+      .channel('chat_notifications_notify')
       .on('postgres_changes', {
-        event: '*', // listen to all download changes
+        event: '*',
         schema: 'public',
-        table: 'file_upload_audit',
-        filter: `action=eq.download`
-      }, (payload) => {
-        fetchNotifications();
-      })
-      .subscribe();
+        table: 'chat_notifications',
+        filter: projectId ? `project_id=eq.${projectId}` : undefined
+      }, (payload: { new: { mentioned_user?: string } }) => {
+        if (payload.new?.mentioned_user && payload.new.mentioned_user === user.username) {
+          memoizedFetchNotifications();
+        }
+      });
+    channels.push(channel);
+
+    // Subscribe to project events changes
+    channel = supabase
+      .channel('project_events_notify')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'project_events',
+        filter: projectId ? `project_id=eq.${projectId}` : undefined
+      }, () => {
+        memoizedFetchNotifications();
+      });
+    channels.push(channel);
+
+    // Subscribe to project tasks changes
+    channel = supabase
+      .channel('project_tasks_notify')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'project_tasks',
+        filter: projectId ? `project_id=eq.${projectId}` : undefined
+      }, () => {
+        memoizedFetchNotifications();
+      });
+    channels.push(channel);
+
+    // Subscribe to all channels
+    channels.forEach(c => c.subscribe());
+
+    // Cleanup function
     return () => {
-      channel.unsubscribe();
-      channel2.unsubscribe();
-      channel3.unsubscribe();
+      channels.forEach(c => {
+        try {
+          supabase.removeChannel(c);
+        } catch (e) {
+          console.error('Error removing channel:', e);
+        }
+      });
       window.removeEventListener('refresh-notifications', handler);
     };
-  }, [projectId, user.username]);
+  }, [projectId, user.username, memoizedFetchNotifications]);
 
   return (
     <>
@@ -277,10 +449,16 @@ const Notifications = () => {
         <span role="img" aria-label="Notifications">🔔</span>
         {/* Show badge for unread file or event notifications */}
         {(notifications.filter(n => {
-          const isViewed = viewedMap[n.file_name] && viewedMap[n.file_name].includes(user.username);
-          const isDownloaded = downloadedMap[n.file_name] && downloadedMap[n.file_name].includes(user.username);
+          const isViewed = viewedMap[n.file_name]?.includes(user.username);
+          const isDownloaded = downloadedMap[n.file_name]?.includes(user.username);
           return !(isViewed || isDownloaded);
-        }).length + eventNotifications.length) > 0 && (
+        }).length + eventNotifications.filter(ev => {
+          const isRead = !!ev.read;
+          const eventDate = new Date(ev.event_datetime || ev.created_at);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return !isRead && eventDate >= today;
+        }).length) > 0 && (
             <span style={{
               position: 'absolute',
               top: 2,
@@ -296,10 +474,16 @@ const Notifications = () => {
               justifyContent: 'center',
               fontWeight: 'bold',
             }}>{notifications.filter(n => {
-              const isViewed = viewedMap[n.file_name] && viewedMap[n.file_name].includes(user.username);
-              const isDownloaded = downloadedMap[n.file_name] && downloadedMap[n.file_name].includes(user.username);
+              const isViewed = viewedMap[n.file_name]?.includes(user.username);
+              const isDownloaded = downloadedMap[n.file_name]?.includes(user.username);
               return !(isViewed || isDownloaded);
-            }).length + eventNotifications.length}</span>
+            }).length + eventNotifications.filter(ev => {
+              const isRead = !!ev.read;
+              const eventDate = new Date(ev.event_datetime || ev.created_at);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              return !isRead && eventDate >= today;
+            }).length}</span>
           )}
       </button>
       {/* Sidebar notification drawer */}
@@ -335,15 +519,15 @@ const Notifications = () => {
                     key={m.id}
                     style={{ marginBottom: 8, background: '#fef2f2', borderRadius: 6, padding: '8px 10px', border: '1.5px solid #e53e3e', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
                     onClick={async () => {
-  setSidebarOpen(false);
-  await markChatMentionRead(m.id);
-  // Navigate to chat page and scroll to message if possible
-  if (m.project_id && m.message_id) {
-    router.push(`/project/${m.project_id}/chat?mid=${m.message_id}`);
-  } else if (m.project_id) {
-    router.push(`/project/${m.project_id}/chat`);
-  }
-}}
+                      setSidebarOpen(false);
+                      await markChatMentionRead(m.id);
+                      // Navigate to chat page and scroll to message if possible
+                      if (m.project_id && m.message_id) {
+                        router.push(`/project/${m.project_id}/chat?mid=${m.message_id}`);
+                      } else if (m.project_id) {
+                        router.push(`/project/${m.project_id}/chat`);
+                      }
+                    }}
                     title="Go to chat message"
                   >
                     <div>
@@ -359,56 +543,97 @@ const Notifications = () => {
           )}
 
           {/* Event Notifications */}
-          {eventNotifications.length > 0 && (
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ fontWeight: 700, color: '#f59e42', fontSize: 15, marginBottom: 4 }}>Project Events</div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {eventNotifications.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).map(ev => {
-                  const isRead = !!ev.read;
-                  return (
-                    <li
-                      key={ev.id}
-                      style={{
-                        marginBottom: 8,
-                        background: isRead ? '#f7fafc' : '#fffbe6',
-                        borderRadius: 6,
-                        padding: '8px 10px',
-                        border: isRead ? '1px solid #e2e8f0' : '2px solid #fbbf24',
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'space-between',
-                        boxShadow: isRead ? 'none' : '0 2px 8px #fbbf2422',
-                        transition: 'all 0.15s',
-                        minHeight: 32,
-                        maxWidth: '100%',
-                        overflow: 'hidden',
-                        cursor: 'pointer',
-                      }}
-                      onClick={() => {
-  setSidebarOpen(false);
-  if (ev.project_id && ev.event_id) {
-    router.push(`/project/${ev.project_id}?event=${ev.event_id}`);
-  } else if (ev.project_id) {
-    router.push(`/project/${ev.project_id}`);
-  }
-}}
-                      title="Go to event details"
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word', lineHeight: 1.4 }}>
-                          Event: {ev.event_topic}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-                          by {ev.created_by} at {new Date(ev.created_at).toLocaleString()}
-                        </div>
-                      </div>
-                      <span style={{ background: isRead ? '#e2e8f0' : '#fbbf24', color: isRead ? '#888' : '#fff', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 600, marginLeft: 10, minWidth: 54, textAlign: 'center' }}>{isRead ? 'Read' : 'Unread'}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+          {eventNotifications.filter(ev => {
+            try {
+              // First try to get the event date from the event itself if it's populated
+              const eventDate = ev.event?.datetime ? new Date(ev.event.datetime) : 
+                               ev.event_datetime ? new Date(ev.event_datetime) : 
+                               new Date(ev.created_at);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              return eventDate >= today;
+            } catch (e) {
+              console.error('Error processing event date:', e, ev);
+              return false; // Skip events with invalid dates
+            }
+          }).length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontWeight: 700, color: '#f59e42', fontSize: 15, marginBottom: 4 }}>Project Events</div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {eventNotifications
+                    .filter(ev => {
+                      try {
+                        // First try to get the event date from the event itself if it's populated
+                        const eventDate = ev.event?.datetime ? new Date(ev.event.datetime) : 
+                                         ev.event_datetime ? new Date(ev.event_datetime) : 
+                                         new Date(ev.created_at);
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        return eventDate >= today;
+                      } catch (e) {
+                        console.error('Error processing event date:', e, ev);
+                        return false; // Skip events with invalid dates
+                      }
+                    })
+                    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+                    .map(ev => {
+                      const isRead = !!ev.read;
+                      return (
+                        <li
+                          key={ev.id}
+                          style={{
+                            marginBottom: 8,
+                            background: isRead ? '#f7fafc' : '#fffbe6',
+                            borderRadius: 6,
+                            padding: '8px 10px',
+                            border: isRead ? '1px solid #e2e8f0' : '2px solid #fbbf24',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            boxShadow: isRead ? 'none' : '0 2px 8px #fbbf2422',
+                            transition: 'all 0.15s',
+                            minHeight: 32,
+                            maxWidth: '100%',
+                            overflow: 'hidden',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => {
+                            setSidebarOpen(false);
+                            if (ev.project_id && ev.event_id) {
+                              router.push(`/project/${ev.project_id}?event=${ev.event_id}`);
+                            } else if (ev.project_id) {
+                              router.push(`/project/${ev.project_id}`);
+                            }
+                          }}
+                          title="Go to event details"
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word', lineHeight: 1.4 }}>
+                              Event: {ev.event_topic}
+                            </div>
+                            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                              by {ev.created_by} at {new Date(ev.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                          <span style={{
+                            background: isRead ? '#e2e8f0' : '#fbbf24',
+                            color: isRead ? '#888' : '#fff',
+                            borderRadius: 12,
+                            padding: '2px 10px',
+                            fontSize: 12,
+                            fontWeight: 600,
+                            marginLeft: 10,
+                            minWidth: 54,
+                            textAlign: 'center'
+                          }}>
+                            {isRead ? 'Read' : 'Unread'}
+                          </span>
+                        </li>
+                      );
+                    })}
+                </ul>
+              </div>
+            )}
 
           {/* File Upload Notifications */}
           {notifications.length > 0 && (
@@ -420,18 +645,33 @@ const Notifications = () => {
                     key={n.file_name + n.uploaded_at}
                     style={{ marginBottom: 8, background: '#f0f7ff', borderRadius: 6, padding: '8px 10px', border: '1.5px solid #3182ce', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
                     onClick={() => {
-  setSidebarOpen(false);
-  if (n.project_id && n.folder && n.file_name) {
-    router.push(`/project/${n.project_id}?folder=${encodeURIComponent(n.folder)}&file=${encodeURIComponent(n.file_name)}`);
-  } else if (n.project_id) {
-    router.push(`/project/${n.project_id}`);
-  }
-}}
+                      setSidebarOpen(false);
+                      if (n.project_id && n.folder && n.file_name) {
+                        router.push(`/project/${n.project_id}?folder=${encodeURIComponent(n.folder)}&file=${encodeURIComponent(n.file_name)}`);
+                      } else if (n.project_id) {
+                        router.push(`/project/${n.project_id}`);
+                      }
+                    }}
                     title="Go to file"
                   >
                     <div>
-                      <span style={{ fontWeight: 600, fontSize: 13, color: '#2563eb', wordBreak: 'break-word', lineHeight: 1.4 }}>{n.file_name}</span> <span style={{ color: '#222' }}>uploaded by</span> <span style={{ fontWeight: 600, color: '#3182ce' }}>{n.uploaded_by}</span>
-                      <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{new Date(n.uploaded_at).toLocaleString()}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: '#2563eb', wordBreak: 'break-word', lineHeight: 1.4 }}>
+                          {n.file_name}
+                        </span>
+                        {n.folder && (
+                          <div style={{ fontSize: 11, color: '#4b5563', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ color: '#6b7280' }}>Folder:</span>
+                            <span style={{ fontWeight: 500, color: '#4f46e5' }}>{n.folder}</span>
+                          </div>
+                        )}
+                        <div style={{ fontSize: 11, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span>Uploaded by</span>
+                          <span style={{ fontWeight: 600, color: '#3182ce' }}>{n.uploaded_by}</span>
+                          <span>•</span>
+                          <span>{new Date(n.uploaded_at).toLocaleString()}</span>
+                        </div>
+                      </div>
                     </div>
                     <span style={{ background: '#3182ce', color: '#fff', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 600, marginLeft: 10, minWidth: 54, textAlign: 'center' }}>Unread</span>
                   </li>
