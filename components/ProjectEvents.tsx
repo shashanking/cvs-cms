@@ -286,6 +286,7 @@ export function ProjectEventsComponent() {
         // For regular comments, just update the comments list
         setComments(prev => [...prev, newComment]);
         setCommentText('');
+
       }
       
       // Mark event notification as read after check-in
@@ -657,7 +658,7 @@ export function ProjectEventsComponent() {
                                 fontSize: '0.75rem', 
                                 boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' 
                               }}>
-                                {c.username.slice(0, 2).toUpperCase()}
+                                {typeof c.username === 'string' ? c.username.slice(0, 2).toUpperCase() : '--'}
                               </div>
                               <span style={{ fontWeight: 500, color: '#111827', fontSize: '0.875rem' }}>{c.username}</span>
                             </div>

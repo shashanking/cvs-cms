@@ -76,6 +76,7 @@ export function ProjectActivityLogs() {
       'updated': 'updated',
       'deleted': 'deleted',
       'comment': 'commented on',
+    'commented': 'commented on',
       'checked_in': 'checked in to',
       'check_in': 'checked in to',
       // Task actions
@@ -94,6 +95,7 @@ export function ProjectActivityLogs() {
       'updated': '✏️',
       'deleted': '🗑️',
       'comment': '💬',
+    'commented': '💬',
       'checked_in': '✅',
       'check_in': '✅',
       // Task icons
@@ -261,7 +263,7 @@ export function ProjectActivityLogs() {
                       <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 12, fontSize: 13, fontWeight: 500, color: '#7e22ce', background: '#f3e8ff' }}>
                         ✅ checked in to
                       </span>
-                    ) : log.action === 'comment' ? (
+                    ) : (log.action === 'comment' || log.action === 'commented') ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 12, fontSize: 13, fontWeight: 500, color: '#4f46e5', background: '#e0e7ff' }}>
                         💬 commented on
                       </span>
@@ -295,10 +297,10 @@ export function ProjectActivityLogs() {
                     {log.action === 'time_log' && (
                       <span style={{ color: '#ca8a04' }}>Logged {log.details?.minutes} min{log.details?.description && `: ${log.details.description}`}</span>
                     )}
-                    {log.action === 'comment' && log.details?.comment && (
+                    {(log.action === 'comment' || log.action === 'commented') && log.details?.comment && (
                       <span style={{ color: '#4b5563' }}>{log.details.comment}</span>
                     )}
-                    {log.action !== 'time_log' && log.action !== 'comment' && (
+                    {log.action !== 'time_log' && log.action !== 'comment' && log.action !== 'commented' && (
                       <span style={{ color: '#9ca3af' }}>-</span>
                     )}
                   </td>

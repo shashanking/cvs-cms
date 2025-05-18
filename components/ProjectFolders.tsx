@@ -584,26 +584,28 @@ export default function ProjectFolders({ folders, onFileAction }: ProjectFolders
                           setPreviewType(file.name.match(/\.pdf$/i) ? 'pdf' : 'image');
                         }}
                       >👁️</button>
-                      <button
-                        style={{ color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
-                        title="Delete file"
-                        onClick={async () => {
-                          if (!window.confirm('Delete this file?')) return;
-                          await fetch('/api/deleteFile', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              project_id: projectId,
-                              folder: selectedFolder,
-                              file_path: `projects/${projectId}/${selectedFolder}/${file.name}`,
-                              deleted_by: user.username,
-                              deleted_at: new Date().toISOString(),
-                            }),
-                          });
-                          loadFiles(selectedFolder);
-                          loadAuditLogs();
-                        }}
-                      >🗑️</button>
+                      {file.name !== '.keep' && (
+  <button
+    style={{ color: '#e53e3e', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 0 }}
+    title="Delete file"
+    onClick={async () => {
+      if (!window.confirm('Delete this file?')) return;
+      await fetch('/api/deleteFile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: projectId,
+          folder: selectedFolder,
+          file_path: `projects/${projectId}/${selectedFolder}/${file.name}`,
+          deleted_by: user.username,
+          deleted_at: new Date().toISOString(),
+        }),
+      });
+      loadFiles(selectedFolder);
+      loadAuditLogs();
+    }}
+  >🗑️</button>
+)}
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       {(() => {

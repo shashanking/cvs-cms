@@ -18,23 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     // Log event creation in event_logs (for Activity Logs)
     console.log('[DEBUG] Logging event creation:', { event_id: event.id, action: 'created' });
-    await supabase.from('event_logs').insert([
-      {
-        event_id: event.id,
-        project_id,
-        action: 'created',
-        performed_by: created_by,
-        details: {
-          title: topic,
-          event_topic: topic, // Add event_topic for consistent display in logs
-          description,
-          datetime,
-          repeat
-        },
-        created_at: new Date().toISOString()
-      }
-    ]);
-    
+
     return res.status(201).json({ success: true, event });
   }
   res.setHeader('Allow', ['POST']);
