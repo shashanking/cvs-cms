@@ -1,41 +1,49 @@
-import React, { useState, useEffect, CSSProperties } from 'react';
+import React, { useEffect, useState, CSSProperties } from 'react';
+// Import Supabase client instance for DB queries
 import { supabase } from '../lib/supabaseClient';
+// Custom hooks for accessing current user and project context
 import { useUser } from './UserContext';
 import { useProject } from './ProjectContext';
 
-interface ProjectEventsProps {
-}
+// No props currently defined for this component
+interface ProjectEventsProps {}
 
+// Types for check-ins on an event
 interface CheckIn {
   username: string;
-  created_at?: string;
+  created_at?: string; // optional timestamp of check-in
 }
 
+// Type for project event items
 interface EventItem {
   id: number;
-  topic: string;
+  topic: string;              // Event title/topic
   description: string;
-  datetime: string | null;
-  repeat: string | null;
-  created_by: string;
-  created_at: string;
-  is_deleted: boolean;
-  check_ins?: CheckIn[];
+  datetime: string | null;    // Scheduled date/time or null
+  repeat: string | null;      // Repeat frequency or "single"
+  created_by: string;         // Username who created the event
+  created_at: string;         // Timestamp when event created
+  is_deleted: boolean;        // Soft deleted flag
+  check_ins?: CheckIn[];      // Optional array of check-ins by users
 }
 
+// Type for comments on an event
 interface CommentItem {
   id: number;
-  event_id: number;
-  username: string;
-  comment: string;
-  check_in: boolean;
-  created_at: string;
+  event_id: number;          // Associated event ID
+  username: string;          // Comment poster username
+  comment: string;           // Comment text
+  check_in: boolean;         // Is this a check-in comment?
+  created_at: string;        // Timestamp of comment
 }
 
 export function ProjectEventsComponent() {
+  // Get current user and project info from context
   const { user } = useUser();
   const { project } = useProject();
   const projectId = project?.id;
+
+  // State variables for event list, form inputs, loading/error statuses
   const [events, setEvents] = useState<EventItem[]>([]);
   const [topic, setTopic] = useState('');
   const [description, setDescription] = useState('');
@@ -43,15 +51,20 @@ export function ProjectEventsComponent() {
   const [repeat, setRepeat] = useState('single');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Selected event for viewing details
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
+  // List of comments for selected event
   const [comments, setComments] = useState<CommentItem[]>([]);
+  // Text input value for adding a new comment
   const [commentText, setCommentText] = useState('');
 
+  // Fetch events on project ID change or mount
   useEffect(() => {
     if (!projectId) return;
     fetchEvents();
   }, [projectId]);
 
+  // Fetch non-deleted project events ordered by datetime ascending
   const fetchEvents = async () => {
     if (!projectId) return;
     setLoading(true);
@@ -62,11 +75,13 @@ export function ProjectEventsComponent() {
       .eq('project_id', projectId)
       .eq('is_deleted', false)
       .order('datetime', { ascending: true });
+
     if (error) setError(error.message);
     setEvents(data || []);
     setLoading(false);
   };
 
+  // Log event actions to event_logs table (e.g., update events)
   const logEventAction = async (action: string, eventId: number, details: any) => {
     try {
       const { error } = await supabase.from('event_logs').insert([{
@@ -83,6 +98,7 @@ export function ProjectEventsComponent() {
     }
   };
 
+  // Handle creating new event form submission
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!projectId) {
@@ -93,6 +109,7 @@ export function ProjectEventsComponent() {
     setError(null);
     
     try {
+      // Call backend API to create event
       const res = await fetch('/api/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -115,9 +132,9 @@ export function ProjectEventsComponent() {
       const eventId = eventData.event?.id;
       
       if (eventId) {
-        // Notify members
+        // Notify members about new event via API endpoint
         try {
-          const topicVal = topic;
+          // Static user list to notify
           const staticMembers = [
             'vikash',
             'rini',
@@ -126,19 +143,17 @@ export function ProjectEventsComponent() {
             'sahil',
             'sayan'
           ];
-          
           const notifRes = await fetch('/api/eventNotification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               project_id: projectId,
               event_id: eventId,
-              event_topic: topicVal,
+              event_topic: topic,
               created_by: user.username,
               all_usernames: staticMembers
             })
           });
-          
           if (!notifRes.ok) {
             console.error('Failed to send notifications');
           }
@@ -147,11 +162,12 @@ export function ProjectEventsComponent() {
         }
       }
       
-      // Reset form and refresh events
+      // Reset form fields after creating event
       setTopic('');
       setDescription('');
       setDatetime('');
       setRepeat('single');
+      // Refresh event list
       await fetchEvents();
       
     } catch (error) {
@@ -162,6 +178,7 @@ export function ProjectEventsComponent() {
     }
   };
 
+  // Handle user selecting event from list; fetch event comments
   const handleSelectEvent = async (event: EventItem) => {
     setSelectedEvent(event);
     setLoading(true);
@@ -179,6 +196,7 @@ export function ProjectEventsComponent() {
     }
   };
   
+  // Handle soft deletion of event (user confirmation required)
   const handleDeleteEvent = async (eventId: number) => {
     if (!window.confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
       return;
@@ -186,8 +204,7 @@ export function ProjectEventsComponent() {
     
     setLoading(true);
     try {
-      // Soft delete: set is_deleted to true, updated_by, and updated_at
-      // The database trigger will automatically log the deletion
+      // Soft delete by setting is_deleted flag and updating metadata
       const { error } = await supabase
         .from('project_events')
         .update({ 
@@ -199,7 +216,7 @@ export function ProjectEventsComponent() {
 
       if (error) throw error;
 
-      // Refresh events list
+      // Refresh event list and deselect event
       await fetchEvents();
       setSelectedEvent(null);
     } catch (error) {
@@ -210,6 +227,7 @@ export function ProjectEventsComponent() {
     }
   };
   
+  // Handle updating an existing event
   const handleUpdateEvent = async (updatedEvent: EventItem) => {
     if (!projectId) return;
     
@@ -222,7 +240,7 @@ export function ProjectEventsComponent() {
         
       if (error) throw error;
       
-      // Log the event update
+      // Log event update action for audit/history
       await logEventAction('event_updated', updatedEvent.id, {
         topic: updatedEvent.topic,
         description: updatedEvent.description,
@@ -231,7 +249,7 @@ export function ProjectEventsComponent() {
         updated_at: new Date().toISOString()
       });
       
-      // Refresh events list
+      // Refresh event list to show updated data
       await fetchEvents();
       
     } catch (error) {
@@ -242,6 +260,8 @@ export function ProjectEventsComponent() {
     }
   };
 
+
+  // Handle adding comment or check-in to selected event
   const handleAddComment = async (checkIn = false) => {
     console.log('[DEBUG] handleAddComment called with checkIn:', checkIn);
     if (!selectedEvent) return;
@@ -249,6 +269,7 @@ export function ProjectEventsComponent() {
     setError(null);
     
     try {
+      // Call backend API endpoint to add comment or check-in
       const res = await fetch('/api/eventComment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -267,9 +288,8 @@ export function ProjectEventsComponent() {
 
       const newComment = await res.json();
       
-      // If this was a check-in, refresh the events and comments
       if (checkIn) {
-        // Refresh the comments list to include the new check-in
+        // If check-in, refresh comments list and events to update check-in count
         const { data: updatedComments, error: commentsError } = await supabase
           .from('event_comments')
           .select('*')
@@ -280,16 +300,14 @@ export function ProjectEventsComponent() {
           setComments(updatedComments || []);
         }
         
-        // Also refresh the events list to update the check-in count
         await fetchEvents();
       } else {
-        // For regular comments, just update the comments list
+        // For regular comments, append new comment to existing list
         setComments(prev => [...prev, newComment]);
         setCommentText('');
-
       }
       
-      // Mark event notification as read after check-in
+      // Mark event notification as read after check-in, if relevant
       if (checkIn && user && projectId) {
         if (typeof window !== 'undefined' && typeof (window as any).markEventNotificationRead === 'function') {
           (window as any).markEventNotificationRead(selectedEvent.id, user.username, projectId);
@@ -298,7 +316,7 @@ export function ProjectEventsComponent() {
             detail: { eventId: selectedEvent.id, username: user.username, projectId }
           }));
         }
-        window.dispatchEvent(new Event('refreshNotifications'));
+        window.dispatchEvent(new Event('refreshNotifications'));        
       }
     } catch (error) {
       setError(error.message);
@@ -308,11 +326,14 @@ export function ProjectEventsComponent() {
     }
   };
 
+
+  // If project is not loaded yet, show loading
   if (!projectId) return <div>Loading project events...</div>;
-  // State for responsive layout
+
+  // State to track if mobile layout should be used
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  // Handle window resize
+  // Effect to handle window resize for responsive layout
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -322,7 +343,7 @@ export function ProjectEventsComponent() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Styles
+  // CSSProperties for container, dynamically adjust padding for mobile
   const containerStyle: CSSProperties = {
     padding: isMobile ? '4vw' : '2rem',
     maxWidth: '1200px',
@@ -330,6 +351,7 @@ export function ProjectEventsComponent() {
     boxSizing: 'border-box'
   };
 
+  // Styles for event creation form
   const formStyle: CSSProperties = {
     marginBottom: '1.5rem',
     display: 'flex',
@@ -337,6 +359,7 @@ export function ProjectEventsComponent() {
     gap: '0.75rem'
   };
 
+  // Styles for main content area, flex direction switches mobile/desktop
   const mainContentStyle: CSSProperties = {
     display: 'flex',
     flexDirection: isMobile ? 'column' : 'row',
@@ -344,6 +367,7 @@ export function ProjectEventsComponent() {
     width: '100%'
   };
 
+  // Styles for right detail section (selected event details)
   const detailSectionStyle: CSSProperties = {
     flex: 2,
     width: '100%',
@@ -355,7 +379,9 @@ export function ProjectEventsComponent() {
 
   return (
     <div style={containerStyle}>
+      {/* Main heading */}
       <h3 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', color: '#2563eb' }}>Events</h3>
+      {/* Event creation form */}
       <form onSubmit={handleCreateEvent} style={formStyle}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <input 
@@ -404,8 +430,10 @@ export function ProjectEventsComponent() {
           </div>
         </div>
       </form>
+      {/* Show error below form if any */}
       {error && <div style={{ color: '#ef4444', marginBottom: '1rem', padding: '0.5rem', backgroundColor: '#fef2f2', borderRadius: '0.375rem' }}>{error}</div>}
       <div style={mainContentStyle}>
+        {/* Left panel: list of upcoming events */}
         <div style={{ flex: 1 }}>
           <h4>Upcoming Events</h4>
           {loading ? <div>Loading...</div> : (
@@ -413,12 +441,15 @@ export function ProjectEventsComponent() {
               {events.length === 0 ? (
                 <li style={{ color: '#888', fontStyle: 'italic', marginTop: 12 }}>No events yet. Create one above!</li>
               ) : events.map(ev => {
+                // Filter check-ins for this event
                 const evCheckins = comments.filter(c => c.event_id === ev.id && c.check_in);
-                const shown = evCheckins.slice(0, 5);
-                const more = evCheckins.length > 5 ? evCheckins.length - 5 : 0;
+                const shown = evCheckins.slice(0, 5);           // Show up to 5 check-ins
+                const more = evCheckins.length > 5 ? evCheckins.length - 5 : 0; // How many more beyond 5
+
                 return (
                   <li
                     key={ev.id}
+                    onClick={() => handleSelectEvent(ev)}
                     style={{
                       marginBottom: 12,
                       background: selectedEvent?.id === ev.id ? '#ebf8ff' : '#f7fafc',
@@ -432,9 +463,8 @@ export function ProjectEventsComponent() {
                       alignItems: 'center',
                       gap: 12
                     }}
-                    onClick={() => handleSelectEvent(ev)}
                   >
-                    {/* Avatar (initials) */}
+                    {/* Avatar: show first two uppercase letters of creator name */}
                     <div style={{
                       width: 38,
                       height: 38,
@@ -450,6 +480,7 @@ export function ProjectEventsComponent() {
                     }}>
                       {ev.created_by.slice(0, 2).toUpperCase()}
                     </div>
+                    {/* Event info block */}
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ fontWeight: 700, fontSize: 16 }}>
@@ -458,9 +489,10 @@ export function ProjectEventsComponent() {
                             {ev.datetime ? new Date(ev.datetime).toLocaleString() : ''}
                           </span>
                         </div>
+                        {/* Delete event button positioned at right */}
                         <button 
                           onClick={(e) => {
-                            e.stopPropagation();
+                            e.stopPropagation(); // Prevent triggering event select on button click
                             handleDeleteEvent(ev.id);
                           }}
                           style={{
@@ -486,7 +518,7 @@ export function ProjectEventsComponent() {
                       <div style={{ fontSize: 13, margin: '2px 0 4px 0', color: '#333' }}>{ev.description}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 12, color: '#666' }}>By {ev.created_by}</span>
-                        {/* Badge for repeat/single */}
+                        {/* Badge showing if event repeats or single */}
                         <span style={{
                           background: ev.repeat === 'repeat' ? '#fbbf24' : '#22d3ee',
                           color: ev.repeat === 'repeat' ? '#92400e' : '#0e7490',
@@ -499,8 +531,8 @@ export function ProjectEventsComponent() {
                         {evCheckins.length > 0 && (
                           <span style={{ background: '#e6fffa', color: '#319795', fontWeight: 500, fontSize: 12, borderRadius: 8, padding: '2px 8px' }}>
                             Checked in: {shown.map((e, idx) => (
-                                <span key={e.id || idx}>{e.username} ({new Date(e.created_at).toLocaleString()}){idx < shown.length - 1 ? ', ' : ''}</span>
-                              ))}{more > 0 ? ` +${more} more` : ''}
+                              <span key={e.id || idx}>{e.username} ({new Date(e.created_at).toLocaleString()}){idx < shown.length - 1 ? ', ' : ''}</span>
+                            ))}{more > 0 ? ` +${more} more` : ''}
                           </span>
                         )}
                       </div>
@@ -511,6 +543,7 @@ export function ProjectEventsComponent() {
             </ul>
           )}
         </div>
+        {/* Right panel: details of selected event */}
         <div style={detailSectionStyle}>
           {selectedEvent ? (
             <div>
@@ -527,12 +560,14 @@ export function ProjectEventsComponent() {
               }}>
                 📅 {selectedEvent.datetime ? new Date(selectedEvent.datetime).toLocaleString() : 'No date set'}
               </div>
+              {/* Comment and Check-in section */}
               <div style={{ 
                 marginBottom: '1.5rem', 
                 display: 'flex', 
                 flexDirection: 'column',
                 gap: '0.75rem'
               }}>
+                {/* Check-in button */}
                 <button 
                   onClick={() => {
                     console.log('[DEBUG] Check In button clicked');
@@ -554,6 +589,7 @@ export function ProjectEventsComponent() {
                 >
                   <span>✓</span> Check In
                 </button>
+                {/* Comment text input and post button */}
                 <div style={{ 
                   flex: 1, 
                   display: 'flex', 
@@ -593,6 +629,7 @@ export function ProjectEventsComponent() {
                   </button>
                 </div>
               </div>
+              {/* Comments table */}
               <div style={{ 
                 overflowX: 'auto', 
                 marginTop: '1.5rem',
@@ -630,8 +667,9 @@ export function ProjectEventsComponent() {
                       comments.map((c, i) => (
                         <tr key={c.id} style={{ 
                           borderBottom: '1px solid #e5e7eb', 
-                          transition: 'background 0.2s ease',
-                          ...(window.innerWidth > 768 ? { ':hover': { backgroundColor: '#f9fafb' } } : {})
+                          transition: 'background 0.2s ease'
+                          // Note: The following will not work as-is inline style:
+                          // ...(window.innerWidth > 768 ? { ':hover': { backgroundColor: '#f9fafb' } } : {})
                         }}>
                           <td style={{ padding: '0.75rem 1.25rem', borderRight: '1px solid #f3f4f6' }}>
                             {c.check_in ? 
@@ -688,6 +726,7 @@ export function ProjectEventsComponent() {
               </div>
             </div>
           ) : (
+            // Placeholder if no event selected
             <div style={{ 
               color: '#6b7280', 
               textAlign: 'center', 

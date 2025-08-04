@@ -1,61 +1,88 @@
 import React, { useState } from 'react';
-import FullScreenModal from './FullScreenModal';
 
 interface SheetPreviewProps {
   url: string;
   name?: string;
-  onOpen?: () => void;
-  onClose?: () => void;
 }
 
-const SheetPreview: React.FC<SheetPreviewProps> = ({ url, name, onOpen, onClose }) => {
+export default function SheetPreview({ url, name }: SheetPreviewProps) {
   const [fullscreen, setFullscreen] = useState(false);
-  // Extract the Sheet ID and construct the embed URL
+
   const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   const sheetId = match ? match[1] : null;
-  const embedUrl = sheetId
-    ? `https://docs.google.com/spreadsheets/d/${sheetId}/preview`
-    : null;
+  const embedUrl = sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}/preview` : null;
 
-  if (!embedUrl) {
-    return <div style={{ color: 'red', fontWeight: 500 }}>Invalid Google Sheet link.</div>;
-  }
-
-  const handleOpen = () => {
-    setFullscreen(true);
-    if (onOpen) onOpen();
-  };
-  const handleClose = () => {
-    setFullscreen(false);
-    if (onClose) onClose();
-  };
+  if (!embedUrl) return <div style={{ color: 'red' }}>Invalid Google Sheet link.</div>;
 
   return (
-    <div style={{ width: '100%', minHeight: 400, margin: '10px 0', position: 'relative' }}>
+    <div style={{ minHeight: 360, marginTop: 12, position: 'relative' }}>
       {name && <div style={{ fontWeight: 600, marginBottom: 6 }}>{name}</div>}
       <iframe
         src={embedUrl}
-        title={name || 'Google Sheet Preview'}
+        title={name || 'Sheet Preview'}
         width="100%"
-        height="320"
-        frameBorder="0"
+        height={320}
         style={{ border: '1.5px solid #e3e7ef', borderRadius: 8 }}
+        frameBorder={0}
         allowFullScreen={false}
       />
-      <button onClick={handleOpen} style={{ position: 'absolute', top: 8, right: 8, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>Full Screen</button>
-      <FullScreenModal open={fullscreen} onClose={handleClose}>
-        <iframe
-          src={embedUrl}
-          title={name || 'Google Sheet Full Screen'}
-          width="100%"
-          height="100%"
-          frameBorder="0"
-          style={{ border: 'none', borderRadius: 8 }}
-          allowFullScreen={false}
-        />
-      </FullScreenModal>
+      <button
+        onClick={() => setFullscreen(true)}
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          background: '#2563eb',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 6,
+          padding: '6px 12px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+        }}
+      >
+        Full Screen
+      </button>
+
+      {fullscreen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.7)',
+            zIndex: 1000,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <button
+            onClick={() => setFullscreen(false)}
+            style={{
+              position: 'absolute',
+              top: 20,
+              right: 20,
+              background: 'none',
+              border: 'none',
+              color: '#fff',
+              fontSize: 32,
+              cursor: 'pointer',
+            }}
+            aria-label="Close"
+          >
+            &times;
+          </button>
+          <iframe
+            src={embedUrl}
+            title={name || 'Sheet Fullscreen'}
+            width="90vw"
+            height="90vh"
+            frameBorder={0}
+            style={{ borderRadius: 8 }}
+            allowFullScreen={false}
+          />
+        </div>
+      )}
     </div>
   );
-};
-
-export default SheetPreview;
+}

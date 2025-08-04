@@ -2,58 +2,76 @@ import { useState, useEffect } from 'react';
 import { useProject } from './ProjectContext';
 import { supabase } from '../lib/supabaseClient';
 
+// Define the structure of an activity log (event or task)
 type ActivityLog = {
   id: string;
-  type: 'event' | 'task';
-  action: string;
-  performed_by: string;
-  created_at: string;
-  details: any;
-  reference_id: string | number;
-  title?: string;
+  type: 'event' | 'task';           // The type of log entry
+  action: string;                   // The action performed
+  performed_by: string;             // User who performed the action
+  created_at: string;               // Timestamp of action
+  details: any;                    // Additional details about the action
+  reference_id: string | number;   // ID of referenced event/task
+  title?: string;                  // Optional title of the event/task
 };
 
 export function ProjectActivityLogs() {
+  // Get current project from context
   const { project } = useProject();
+
+  // State: loaded activity logs
   const [logs, setLogs] = useState<ActivityLog[]>([]);
+  // State: loading indicator
   const [loading, setLoading] = useState(true);
+  // State: error message in case fetching fails
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch logs when project ID changes or on mount
   useEffect(() => {
-    if (!project?.id) return;
-    
+    if (!project?.id) return; // Do nothing if no project id
+
+    // Async function to load activity logs from API
     const fetchActivityLogs = async () => {
       try {
         setLoading(true);
         setError(null);
-        
+
+        // Call backend API for logs of current project
         const response = await fetch(`/api/project/logs?projectId=${project.id}`);
+
+        // Throw error if response is not OK
         if (!response.ok) {
           throw new Error('Failed to fetch activity logs');
         }
-        
+
+        // Parse JSON response
         const data = await response.json();
+
+        // Update logs state from API response or empty array if none
         setLogs(data.logs || []);
       } catch (err) {
+        // On error, log and update error state
         console.error('Error fetching activity logs:', err);
         setError('Failed to load activity logs');
       } finally {
+        // Always stop loading indicator
         setLoading(false);
       }
     };
 
+    // Initial fetch call
     fetchActivityLogs();
 
-    // Real-time updates for event_logs and task_logs
+    // Setup realtime subscription for event_logs table changes filtered by project id
     const eventLogSub = supabase
       .channel('event-logs-activity')
       .on(
-        'postgres_changes',
+        'postgres_changes',                         // Listen to all events (INSERT/UPDATE/DELETE)
         { event: '*', schema: 'public', table: 'event_logs', filter: `project_id=eq.${project.id}` },
-        () => fetchActivityLogs()
+        () => fetchActivityLogs()                   // Refresh logs on any change
       )
       .subscribe();
 
+    // Setup realtime subscription for task_logs similarly
     const taskLogSub = supabase
       .channel('task-logs-activity')
       .on(
@@ -63,50 +81,46 @@ export function ProjectActivityLogs() {
       )
       .subscribe();
 
+    // Cleanup subscriptions on unmount or project change
     return () => {
       supabase.removeChannel(eventLogSub);
       supabase.removeChannel(taskLogSub);
     };
   }, [project?.id]);
 
+  // Utility function: map action to a human-readable label
   const getActionLabel = (action: string) => {
     const actions: Record<string, string> = {
-      // Event actions
       'created': 'created',
       'updated': 'updated',
       'deleted': 'deleted',
       'comment': 'commented on',
-    'commented': 'commented on',
+      'commented': 'commented on',
       'checked_in': 'checked in to',
       'check_in': 'checked in to',
-      // Task actions
       'time_log': 'logged time on',
-      // Fallback
       'unknown': 'performed an action on'
     };
     return actions[action] || actions['unknown'];
   };
 
+  // Utility function: provide emoji icon for action and log type
   const getActionIcon = (action: string, type: 'event' | 'task') => {
-    // Icons for different action types
     const icons: Record<string, string> = {
-      // Event icons
       'created': '📅',
       'updated': '✏️',
       'deleted': '🗑️',
       'comment': '💬',
-    'commented': '💬',
+      'commented': '💬',
       'checked_in': '✅',
       'check_in': '✅',
-      // Task icons
       'time_log': '⏱️',
-      // Fallback
       'default': type === 'event' ? '📅' : '📝'
     };
-
     return icons[action] || icons['default'];
   };
 
+  // Utility function: assign bg/text color classes based on action (not used in current table, optional)
   const getActionColor = (action: string) => {
     const actionLower = action.toLowerCase();
     if (actionLower.includes('delete')) return 'bg-red-100 text-red-800';
@@ -118,6 +132,7 @@ export function ProjectActivityLogs() {
     return 'bg-gray-100 text-gray-800';
   };
 
+  // Utility: format ISO date string to readable local datetime string
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-US', {
       year: 'numeric',
@@ -128,6 +143,7 @@ export function ProjectActivityLogs() {
     });
   };
 
+  // State for filtering logs (search + filters)
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('');
   const [userFilter, setUserFilter] = useState('');
@@ -136,26 +152,23 @@ export function ProjectActivityLogs() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
+  // Filter logs array based on all filters and search string
   const filteredLogs = logs.filter(log => {
-    // Action filter
     if (actionFilter && log.action !== actionFilter) return false;
-    // User filter
     if (userFilter && !log.performed_by?.toLowerCase().includes(userFilter.toLowerCase())) return false;
-    // Title filter
     if (titleFilter && !(log.title || '').toLowerCase().includes(titleFilter.toLowerCase())) return false;
-    // Type filter
     if (typeFilter && log.type !== typeFilter) return false;
-    // Date range filter
     if (fromDate && new Date(log.created_at) < new Date(fromDate)) return false;
     if (toDate && new Date(log.created_at) > new Date(toDate + 'T23:59:59')) return false;
-    // General search (optional: keep for fuzzy search)
-    if (search && !(
-      log.performed_by?.toLowerCase().includes(search.toLowerCase()) ||
-      (log.title || '').toLowerCase().includes(search.toLowerCase())
-    )) return false;
+    if (search &&
+      !(
+        log.performed_by?.toLowerCase().includes(search.toLowerCase()) ||
+        (log.title || '').toLowerCase().includes(search.toLowerCase())
+      )) return false;
     return true;
   });
 
+  // Render loading placeholder while fetching logs
   if (loading) {
     return (
       <div className="p-4">
@@ -168,6 +181,7 @@ export function ProjectActivityLogs() {
     );
   }
 
+  // Render error state
   if (error) {
     return (
       <div className="p-4 text-red-600">
@@ -176,6 +190,7 @@ export function ProjectActivityLogs() {
     );
   }
 
+  // Render message when no logs found
   if (logs.length === 0) {
     return (
       <div className="p-4 text-gray-500 text-center">
@@ -184,9 +199,10 @@ export function ProjectActivityLogs() {
     );
   }
 
+  // Render the main table of filtered logs and filter controls
   return (
     <div className="overflow-x-auto mt-6">
-      {/* Filter/Search Row */}
+      {/* Filter controls: action, user, title, type, date range */}
       <div className="flex flex-wrap gap-2 mb-3 items-center">
         <select
           value={actionFilter}
@@ -236,6 +252,8 @@ export function ProjectActivityLogs() {
           onChange={e => setToDate(e.target.value)}
         />
       </div>
+
+      {/* Activity logs table */}
       <div style={{ overflowX: 'auto', marginTop: 0 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001' }}>
           <thead style={{ background: '#f3f4f6' }}>
@@ -249,6 +267,7 @@ export function ProjectActivityLogs() {
             </tr>
           </thead>
           <tbody>
+            {/* Show a message if filter removes all logs */}
             {filteredLogs.length === 0 ? (
               <tr>
                 <td colSpan={6} style={{ padding: 12, textAlign: 'center', color: '#888' }}>
@@ -256,14 +275,22 @@ export function ProjectActivityLogs() {
                 </td>
               </tr>
             ) : (
+              // Map each filtered log to a table row
               filteredLogs.map((log, i) => (
-                <tr key={log.id} style={{ borderBottom: '1px solid #f1f1f1' }} onMouseOver={(e) => e.currentTarget.style.background = '#f9fafb'} onMouseOut={(e) => e.currentTarget.style.background = ''}>
+                <tr
+                  key={log.id}
+                  // Highlight on hover
+                  style={{ borderBottom: '1px solid #f1f1f1' }}
+                  onMouseOver={(e) => (e.currentTarget.style.background = '#f9fafb')}
+                  onMouseOut={(e) => (e.currentTarget.style.background = '')}
+                >
+                  {/* Action column with icons and color-coded badges */}
                   <td style={{ padding: 8 }}>
                     {log.action === 'checked_in' || log.action === 'check_in' ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 12, fontSize: 13, fontWeight: 500, color: '#7e22ce', background: '#f3e8ff' }}>
                         ✅ checked in to
                       </span>
-                    ) : (log.action === 'comment' || log.action === 'commented') ? (
+                    ) : log.action === 'comment' || log.action === 'commented' ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 12, fontSize: 13, fontWeight: 500, color: '#4f46e5', background: '#e0e7ff' }}>
                         💬 commented on
                       </span>
@@ -285,17 +312,34 @@ export function ProjectActivityLogs() {
                       </span>
                     )}
                   </td>
+
+                  {/* Title column with link to hash anchor */}
                   <td style={{ padding: 8 }}>
-                    <a href={`#${log.type}-${log.reference_id}`} style={{ fontWeight: 500, color: '#2563eb', textDecoration: 'none' }} onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'} onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}>
+                    <a
+                      href={`#${log.type}-${log.reference_id}`}
+                      style={{ fontWeight: 500, color: '#2563eb', textDecoration: 'none' }}
+                      onMouseOver={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                      onMouseOut={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                    >
                       {log.title}
                     </a>
                   </td>
+
+                  {/* Type column */}
                   <td style={{ padding: 8, textTransform: 'capitalize' }}>{log.type}</td>
+
+                  {/* Performed by column */}
                   <td style={{ padding: 8 }}>{log.performed_by}</td>
+
+                  {/* Created time column */}
                   <td style={{ padding: 8, color: '#6b7280' }}>{formatDate(log.created_at)}</td>
+
+                  {/* Details column shows extra info based on action */}
                   <td style={{ padding: 8 }}>
                     {log.action === 'time_log' && (
-                      <span style={{ color: '#ca8a04' }}>Logged {log.details?.minutes} min{log.details?.description && `: ${log.details.description}`}</span>
+                      <span style={{ color: '#ca8a04' }}>
+                        Logged {log.details?.minutes} min{log.details?.description && `: ${log.details.description}`}
+                      </span>
                     )}
                     {(log.action === 'comment' || log.action === 'commented') && log.details?.comment && (
                       <span style={{ color: '#4b5563' }}>{log.details.comment}</span>

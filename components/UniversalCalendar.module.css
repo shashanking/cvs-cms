@@ -1,14 +1,16 @@
+/* Wrapper around the calendar: white background, rounded corners, shadow, responsive padding */
 .calendarWrapper {
   background: #fff;
   border-radius: 1.2em;
-  box-shadow: 0 2px 12px rgba(44,62,80,0.08);
+  box-shadow: 0 2px 12px rgba(44,62,80,0.08); /* subtle drop shadow */
   padding: 2vw;
-  margin: 0 auto 2vw auto;
-  max-width: 1000px;
-  min-height: 420px;
+  margin: 0 auto 2vw auto;  /* center horizontally with vertical bottom margin */
+  max-width: 1000px;        /* constrain max width */
+  min-height: 420px;        /* fix minimum height */
   width: 100%;
 }
 
+/* Container and inner container set full width for content flow */
 .calendarContainer {
   width: 100%;
   max-width: 100%;
@@ -18,60 +20,64 @@
   width: 100%;
 }
 
-/* Mobile styles */
+/* Mobile styles: less padding, no border-radius, and remove shadow for cleaner mobile look */
 @media (max-width: 768px) {
   .calendarWrapper {
     padding: 12px 0;
-    margin: 0 -8px;
+    margin: 0 -8px;        /* negative margin to offset container padding */
     border-radius: 0;
     box-shadow: none;
   }
   
+  /* Enable horizontal scrolling for calendar container on mobile */
   .calendarContainer {
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    -webkit-overflow-scrolling: touch; /* smooth momentum scrolling on iOS */
     padding: 0 4px;
   }
   
+  /* Inner calendar minimum width to keep layout usable on small screens */
   .calendarInner {
     min-width: 300px;
     padding: 0 4px;
   }
 }
 
+/* Adjustments for even smaller screens (under 700px) to ensure readability */
 @media (max-width: 700px) {
   .calendarWrapper {
     padding: 2vw 1vw;
-    max-width: 98vw;
+    max-width: 98vw; /* almost full viewport width */
     min-width: 0;
   }
   .fc .fc-toolbar-title {
-    font-size: 1.1em;
+    font-size: 1.1em; /* slightly larger toolbar title for visibility */
   }
   .fc .fc-button {
     font-size: 0.95em;
-    padding: 0.4em 0.7em;
+    padding: 0.4em 0.7em; /* smaller buttons for better fit */
   }
   .fc .fc-daygrid-day-number {
     font-size: 1em;
   }
 }
 
+/* Core FullCalendar classes styling */
 .fc {
-  font-family: 'Inter', Arial, sans-serif;
+  font-family: 'Inter', Arial, sans-serif; /* modern sans-serif font */
 }
 
 .fc-event {
-  border-radius: 8px;
+  border-radius: 8px;    /* rounded event blocks */
   font-size: 0.98em;
   padding: 2px 8px;
-  font-weight: 500;
+  font-weight: 500;      /* medium weight for event text */
 }
 
 .fc-daygrid-event-dot {
-  border-radius: 50%;
+  border-radius: 50%;    /* circular dots for day grid events */
 }
 
 .fc-toolbar {
-  margin-bottom: 1.2em;
+  margin-bottom: 1.2em;  /* spacing below toolbar */
 }
