@@ -1,6 +1,14 @@
-import React from 'react';
-// You can combine these into one line: import React, { useState } from 'react';
-import { useState } from 'react';
+import React, { useState } from 'react';
+
+// Added imports for Material UI components:
+import {
+  Box,
+  Button,
+  CircularProgress,
+  TextField,
+  Typography,
+  Paper,
+} from '@mui/material';
 
 // Component props definition:
 // onCreated: callback function to notify parent component when a project is created.
@@ -16,12 +24,9 @@ export default function CreateProjectForm({ onCreated }: { onCreated: (project: 
 
   // Handler for the form submit event
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // Prevent page reload
-
-    setLoading(true);   // Show loading indicator
-    setError(null);     // Clear any existing error
-
-    // Fetch the logged-in user's username from localStorage (assumption: user info saved there)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
     const user = JSON.parse(localStorage.getItem('cvs-cms-user') || '{}');
 
     try {
@@ -54,39 +59,81 @@ export default function CreateProjectForm({ onCreated }: { onCreated: (project: 
   };
 
   return (
-    // The form HTML with controlled inputs and submit button
-    <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
-      <h2>Create New Project</h2>
+    // Changed from <form> with inline styles to MUI Paper component for padding, shadow, and max width
+    <Paper
+      component="form"
+      onSubmit={handleSubmit}
+      sx={{
+        p: 3,             // padding around form
+        mb: 3,            // margin bottom below form
+        maxWidth: 400,     // max width for better readability
+        mx: 'auto',       // center horizontally
+      }}
+      elevation={3}       // subtle shadow
+    >
+      {/* Changed plain <h2> to MUI Typography for better typography and margin */}
+      <Typography variant="h6" component="h2" gutterBottom>
+        Create New Project
+      </Typography>
 
-      {/* Input for Project Name */}
-      <div style={{ marginBottom: 8 }}>
-        <input
-          type="text"
-          placeholder="Project name"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          required       // Browser will enforce non-empty input
-          style={{ padding: 8, width: 300 }}
-        />
-      </div>
+      {/* Changed plain <input> to MUI TextField with label, fullWidth, and outlined style */}
+      <TextField
+        label="Project Name"
+        variant="outlined"
+        fullWidth
+        required
+        value={name}
+        onChange={e => setName(e.target.value)}
+        sx={{ mb: 2 }}   // margin bottom for spacing
+      />
 
-      {/* Textarea for Description */}
-      <div style={{ marginBottom: 8 }}>
-        <textarea
-          placeholder="Project description"
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          style={{ padding: 8, width: 300, height: 60 }}
-        />
-      </div>
+      {/* Changed plain <textarea> to multiline MUI TextField with label */}
+      <TextField
+        label="Project Description"
+        variant="outlined"
+        fullWidth
+        multiline
+        minRows={3}
+        value={description}
+        onChange={e => setDescription(e.target.value)}
+        sx={{ mb: 2 }}
+      />
 
-      {/* Submit Button with disabled/loading state */}
-      <button type="submit" disabled={loading} style={{ padding: '8px 16px' }}>
-        {loading ? 'Creating...' : 'Create Project'}
-      </button>
+      {/* Encapsulated submit button and loading spinner */}
+      <Box sx={{ position: 'relative' }}>
+        {/* Changed plain button to MUI Button with full width, variant, disabled during loading */}
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          disabled={loading}
+          fullWidth
+          size="large"
+        >
+          {loading ? 'Creating...' : 'Create Project'}
+        </Button>
 
-      {/* Error display */}
-      {error && <div style={{ color: 'red', marginTop: 8 }}>{error}</div>}
-    </form>
+        {/* Added circular loading spinner on top of button when loading */}
+        {loading && (
+          <CircularProgress
+            size={24}
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              marginTop: '-12px',
+              marginLeft: '-12px',
+            }}
+          />
+        )}
+      </Box>
+
+      {/* Changed error display to MUI Typography with error color and margin */}
+      {error && (
+        <Typography color="error" sx={{ mt: 2 }}>
+          {error}
+        </Typography>
+      )}
+    </Paper>
   );
 }

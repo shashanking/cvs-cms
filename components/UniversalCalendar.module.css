@@ -2,12 +2,16 @@
 .calendarWrapper {
   background: #fff;
   border-radius: 1.2em;
-  box-shadow: 0 2px 12px rgba(44,62,80,0.08); /* subtle drop shadow */
-  padding: 2vw;
-  margin: 0 auto 2vw auto;  /* center horizontally with vertical bottom margin */
-  max-width: 1000px;        /* constrain max width */
-  min-height: 420px;        /* fix minimum height */
+  box-shadow: 0 2px 12px rgba(44, 62, 80, 0.08);
+  padding: 1vw 2vw;   /* reduce vertical padding */
+  margin-bottom: 1vw; /* smaller bottom margin */
+  max-width: 100vw;
+  min-height: 320px;  /* reduce height */
   width: 100%;
+  box-sizing: border-box;
+
+  /* Prevent horizontal scroll on desktop */
+  overflow-x: hidden;
 }
 
 /* Container and inner container set full width for content flow */
@@ -27,16 +31,15 @@
     margin: 0 -8px;        /* negative margin to offset container padding */
     border-radius: 0;
     box-shadow: none;
+
+    /* Allow horizontal scroll on mobile */
+    overflow-x: visible;
   }
-  
-  /* Enable horizontal scrolling for calendar container on mobile */
   .calendarContainer {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch; /* smooth momentum scrolling on iOS */
     padding: 0 4px;
   }
-  
-  /* Inner calendar minimum width to keep layout usable on small screens */
   .calendarInner {
     min-width: 300px;
     padding: 0 4px;
@@ -50,13 +53,16 @@
     max-width: 98vw; /* almost full viewport width */
     min-width: 0;
   }
+
   .fc .fc-toolbar-title {
     font-size: 1.1em; /* slightly larger toolbar title for visibility */
   }
+
   .fc .fc-button {
     font-size: 0.95em;
     padding: 0.4em 0.7em; /* smaller buttons for better fit */
   }
+
   .fc .fc-daygrid-day-number {
     font-size: 1em;
   }

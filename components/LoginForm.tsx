@@ -8,8 +8,7 @@ import SetPasswordForm from './SetPasswordForm';
 // Supabase client to query your backend database
 import { supabase } from '../lib/supabaseClient';
 
-// Corporate override password for initial login / password resets
-const CORPORATE_PASSWORD = 'cvs.admin.06.';
+const CORPORATE_PASSWORD = 'cvs.admin.05.'; 
 
 // Define LoginForm component with an onLogin callback prop that receives user info on successful login
 export default function LoginForm({ onLogin }: { onLogin: (user: { username: string, role: string }) => void }) {

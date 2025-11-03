@@ -1,5 +1,5 @@
 // pages/_app.tsx
-import React, { useEffect, memo } from 'react';
+import React, { useEffect } from 'react';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 
@@ -11,9 +11,10 @@ import '../styles/chat.css';
 // Import your contexts and components
 import { UserProvider, useUser } from '../components/UserContext';
 import { ProjectProvider } from '../components/ProjectContext';
-import Notifications from '../components/Notifications';
+import TopBar from '../components/TopBar';
 
-// Optional: Simple global error boundary to catch JavaScript errors
+
+// Error Boundary implementation
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean }
@@ -24,41 +25,67 @@ class ErrorBoundary extends React.Component<
   }
 
   static getDerivedStateFromError() {
+    // Update state to render fallback UI
     return { hasError: true };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error("ErrorBoundary caught an error:", error, info);
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log error (could be sent to external monitoring)
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
+      // Fallback UI when an error happens
       return (
-        <div style={{ padding: 20, textAlign: 'center', color: 'red' }}>
+        <div
+          style={{
+            padding: 20,
+            textAlign: 'center',
+            color: 'red',
+            fontFamily: 'Arial, sans-serif',
+          }}
+        >
           <h1>Something went wrong.</h1>
           <p>Please refresh the page or try again later.</p>
         </div>
       );
     }
 
+    // Render children normally if no error
     return this.props.children;
   }
 }
 
-// Memoized GlobalNotifications component to avoid unnecessary rerenders
-const GlobalNotifications = memo(() => {
-  const { user, loading } = useUser();
+// Wrapper to use contexts and top bar with logout
+function AppWrapper({ Component, pageProps }: AppProps) {
+  const { user, setUser } = useUser();
 
-  if (loading) {
-    return <div style={{ padding: 10, textAlign: 'center' }}>Loading...</div>;
-  }
+  // Centralized logout handler
+  const logout = () => {
+    setUser(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('cvs-cms-user');
+    }
+  };
 
-  return user ? <Notifications /> : null;
-});
+  return (
+    <>
+      {/* Fixed TopBar with notifications and logout only if user is logged in */}
+      {user && <TopBar user={user} onLogout={logout} />}
 
-export default function MyApp({ Component, pageProps }: AppProps) {
-  // Optional: You can add client-side meta tag insertion here or better add it in _document.tsx (recommended)
+      {/* Padding to prevent content overlap with the fixed TopBar */}
+      <div style={{ paddingTop: user ? 1 : 0 }}>
+
+        <Component {...pageProps} />
+      </div>
+    </>
+  );
+}
+
+export default function MyApp(props: AppProps) {
   useEffect(() => {
+    // Add viewport meta tag for mobile if not present
     if (!document.querySelector('meta[name="viewport"]')) {
       const meta = document.createElement('meta');
       meta.name = 'viewport';
@@ -78,8 +105,7 @@ export default function MyApp({ Component, pageProps }: AppProps) {
       <ErrorBoundary>
         <UserProvider>
           <ProjectProvider>
-            <GlobalNotifications />
-            <Component {...pageProps} />
+            <AppWrapper {...props} />
           </ProjectProvider>
         </UserProvider>
       </ErrorBoundary>
