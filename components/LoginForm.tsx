@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import SetPasswordForm from './SetPasswordForm';
 import { supabase } from '../lib/supabaseClient';
 
-const CORPORATE_PASSWORD = 'cvs.admin.06.'; 
+const CORPORATE_PASSWORD = 'cvs.admin.05.'; 
 
 export default function LoginForm({ onLogin }: { onLogin: (user: { username: string, role: string }) => void }) {
   const router = useRouter();
